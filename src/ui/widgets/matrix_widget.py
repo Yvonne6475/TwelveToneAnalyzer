@@ -29,9 +29,11 @@ class MatrixWidget(QWidget):
 
         cax = ax.matshow(mat, cmap='tab20', vmin=0, vmax=11)
 
-        # ========== 1. 四边标签定义 ==========
-        left_labels = [f"I{mat[i, 0]}" for i in range(12)]
-        top_labels = [f"P{mat[0, j]}" for j in range(12)]
+        # ========== 1. Four edge labels ==========
+        # Top columns: P0 – P11 (prime transpositions)
+        # Left rows:   I0 – I11 (inversion transpositions)
+        left_labels = [f"I{i}" for i in range(12)]
+        top_labels = [f"P{j}" for j in range(12)]
         right_labels = [f"R{mat[i, -1]}" for i in range(12)]
         bottom_labels = [f"RI{mat[-1, j]}" for j in range(12)]
 
