@@ -10,7 +10,7 @@
 set -e
 
 APP_NAME="TwelveToneAnalyzer"
-DMG_NAME="TwelveToneAnalyzer_Setup_v1.1"
+DMG_NAME="TwelveToneAnalyzer_Setup_v1.2"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 

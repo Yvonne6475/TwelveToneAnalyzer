@@ -17,7 +17,7 @@ RequestExecutionLevel admin
 ; Definitions
 ; ---------------------------------------------------------------------------
 !define PRODUCT "Twelve-Tone Music Analyzer"
-!define VERSION "1.1"
+!define VERSION "1.2"
 !define PUBLISHER "Yvonne"
 !define EXE_NAME "TwelveToneAnalyzer.exe"
 
