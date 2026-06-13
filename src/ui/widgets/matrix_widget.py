@@ -23,7 +23,6 @@ class MatrixWidget(QWidget):
 
     def show_matrix(self, row: list[int]):
         mat = generate_matrix(row)
-        p0 = row[0]
 
         fig, ax = plt.subplots(figsize=(16, 11))
         self._standalone_fig = fig
@@ -31,8 +30,8 @@ class MatrixWidget(QWidget):
         cax = ax.matshow(mat, cmap='tab20', vmin=0, vmax=11)
 
         # ========== 1. 四边标签定义 ==========
-        left_labels = [f"P{p0}"] + [f"I{mat[i, 0]}" for i in range(1, 12)]
-        top_labels = [f"P{p0}"] + [f"R{mat[0, j]}" for j in range(1, 12)]
+        left_labels = [f"I{mat[i, 0]}" for i in range(12)]
+        top_labels = [f"P{mat[0, j]}" for j in range(12)]
         right_labels = [f"R{mat[i, -1]}" for i in range(12)]
         bottom_labels = [f"RI{mat[-1, j]}" for j in range(12)]
 
