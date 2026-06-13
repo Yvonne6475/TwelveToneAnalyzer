@@ -60,7 +60,7 @@ TRANSLATIONS = {
     "dialog.no_score": {"zh": "无乐谱", "en": "No Score"},
     "dialog.no_score_msg": {"zh": "请先加载乐谱文件。", "en": "Please load a score file first."},
     "dialog.url_prompt": {"zh": "从 URL 加载", "en": "Load from URL"},
-    "dialog.url_label": {"zh": "输入 MusicXML/MIDI/MEI 文件的 URL:", "en": "Enter URL of MusicXML/MIDI/MEI file:"},
+    "dialog.url_label": {"zh": "输入乐谱文件的 URL (MusicXML/MIDI/MEI/ABC/KRN):", "en": "Enter URL of score file (MusicXML/MIDI/MEI/ABC/KRN):"},
     "dialog.url_placeholder": {"zh": "https://raw.githubusercontent.com/Yvonne6475/My-music-Corpus-Library/refs/heads/main/...", "en": "https://raw.githubusercontent.com/Yvonne6475/My-music-Corpus-Library/refs/heads/main/..."},
     "dialog.corpus_library_link": {"zh": "打开软件作者曲库 (GitHub)", "en": "Open Author's Corpus Library (GitHub)"},
     "dialog.corpus_prompt": {"zh": "从 music21 曲库选择", "en": "Select from music21 Corpus"},

@@ -66,7 +66,7 @@ _patch_mei_parsers()
 
 
 def load_local_file(path: str):
-    """Load a local MusicXML/MIDI/MEI file and return a music21 Score."""
+    """Load a local MusicXML/MIDI/MEI/ABC/KRN file and return a music21 Score."""
     fmt = detect_format(path)
     try:
         return converter.parse(path, format=fmt)
@@ -74,7 +74,7 @@ def load_local_file(path: str):
         if fmt == 'mei':
             # Still failing after patch — strip beams from XML and retry
             with open(path, 'r', encoding='utf-8') as f:
-                content = f.read()
+                cleaned = f.read()
             for tag in ('beam', 'tuplet', 'tupletSpan'):
                 cleaned = re.sub(rf'<{tag}\b[^>]*/?>', '', cleaned)
                 cleaned = re.sub(rf'<{tag}\b[^>]*>.*?</{tag}>', '', cleaned, flags=re.DOTALL)
