@@ -5,6 +5,25 @@ import os
 import traceback
 from pathlib import Path
 
+# ── Fix music21 corpus path in PyInstaller bundle ──────────────────
+# music21 uses inspect.getfile() + .parent.parent to locate its corpus
+# directory, which resolves incorrectly inside a frozen app. Set the
+# manualCoreCorpusPath to point to the bundled corpus data instead.
+if getattr(sys, 'frozen', False):
+    _bundle_dir = Path(getattr(sys, '_MEIPASS', Path(sys.executable).parent))
+    _corpus_path = _bundle_dir / 'music21' / 'corpus'
+    if _corpus_path.is_dir():
+        # Pre-import music21 environment and set the path before any
+        # other music21 imports happen
+        try:
+            from music21 import environment
+            _env = environment.Environment()
+            _env['manualCoreCorpusPath'] = str(_corpus_path)
+            _env['autoDownload'] = 'allow'
+        except Exception:
+            pass
+    del _bundle_dir, _corpus_path
+
 # ── Fix PyQt5 DLL loading on Windows ──────────────────────────────
 # PyQt5 5.15.6+ stores Qt5 DLLs in PyQt5/Qt5/bin/ and the .pyd files
 # in PyQt5/ root. On some Windows setups, the DLL loader cannot resolve

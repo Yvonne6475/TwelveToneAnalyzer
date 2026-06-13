@@ -123,7 +123,32 @@ def parse_corpus(name: str):
     Returns (name, score) — name is used as the display path.
     """
     from music21 import corpus
-    score = corpus.parse(name)
+
+    # Help the user if they accidentally type "music21" or similar as the work name
+    if not name or '/' not in name:
+        raise ValueError(
+            f"Invalid corpus name: '{name}'.\n\n"
+            "Please enter a valid music21 corpus work name,\n"
+            "e.g. 'bach/bwv66.6' or 'beethoven/opus59no3'.\n\n"
+            "Click 'Browse Corpus Reference' for the full list."
+        )
+
+    try:
+        score = corpus.parse(name)
+    except FileNotFoundError as e:
+        # Likely corpus data files not accessible (e.g., in a frozen build)
+        raise FileNotFoundError(
+            f"Corpus work '{name}' not found.\n\n"
+            f"The music21 corpus data files may not be installed or accessible.\n"
+            f"Detail: {e}"
+        ) from e
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to load corpus work '{name}'.\n\n"
+            f"Make sure this work exists in the music21 corpus.\n"
+            f"Detail: {e}"
+        ) from e
+
     return name, score
 
 
