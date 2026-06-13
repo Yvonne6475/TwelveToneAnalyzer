@@ -26,7 +26,7 @@ param(
     [switch]$SkipPush
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $APP_NAME = "TwelveToneAnalyzer"
 $PROJECT = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $PROJECT
@@ -82,8 +82,12 @@ Write-Host "         Cleaned" -ForegroundColor Green
 
 # ---- 4. Build EXE ----
 Write-Host "[4/7] Building EXE with PyInstaller..." -ForegroundColor Yellow
-& $PYTHON -m PyInstaller TwelveToneAnalyzer.spec 2>&1 | Select-Object -Last 5
+$prevErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$pyiOutput = & $PYTHON -m PyInstaller TwelveToneAnalyzer.spec 2>&1
+$ErrorActionPreference = $prevErrorAction
 if ($LASTEXITCODE -ne 0) {
+    Write-Host $pyiOutput -ForegroundColor Red
     Write-Host "[ERROR] PyInstaller build failed!" -ForegroundColor Red
     exit 1
 }
