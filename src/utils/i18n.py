@@ -52,7 +52,7 @@ TRANSLATIONS = {
 
     # Dialogs - file
     "dialog.open_score": {"zh": "打开乐谱文件", "en": "Open Score File"},
-    "dialog.open_score_filter": {"zh": "Music Files (*.musicxml *.xml *.midi *.mid *.mei);;All Files (*)", "en": "Music Files (*.musicxml *.xml *.midi *.mid *.mei);;All Files (*)"},
+    "dialog.open_score_filter": {"zh": "Music Files (*.musicxml *.xml *.mxl *.midi *.mid *.mei *.abc *.krn);;All Files (*)", "en": "Music Files (*.musicxml *.xml *.mxl *.midi *.mid *.mei *.abc *.krn);;All Files (*)"},
     "dialog.open_audio": {"zh": "打开音频文件", "en": "Open Audio File"},
     "dialog.open_audio_filter": {"zh": "Audio Files (*.wav *.mp3 *.flac *.ogg);;All Files (*)", "en": "Audio Files (*.wav *.mp3 *.flac *.ogg);;All Files (*)"},
     "dialog.load_failed": {"zh": "加载失败", "en": "Load Failed"},

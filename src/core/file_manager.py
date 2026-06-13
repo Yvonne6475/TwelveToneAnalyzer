@@ -16,9 +16,12 @@ def detect_format(path: str) -> str:
     format_map = {
         ".musicxml": "musicxml",
         ".xml": "musicxml",
+        ".mxl": "musicxml",
         ".midi": "midi",
         ".mid": "midi",
         ".mei": "mei",
+        ".abc": "abc",
+        ".krn": "humdrum",
     }
     return format_map.get(ext, "musicxml")
 
