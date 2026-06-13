@@ -65,7 +65,8 @@ from PyQt5.QtGui import QFont
 from src.ui.main_window import MainWindow
 from src.ui.theme import apply_theme
 from src.ui.dialogs.musescore_prompt import check_musescore_on_startup
-from src.utils.config import set_temp_dir, get_temp_dir
+from src.ui.dialogs.language_select_dialog import LanguageSelectDialog
+from src.utils.config import set_temp_dir, get_temp_dir, get_settings
 
 
 def _exception_hook(exctype, value, tb):
@@ -102,6 +103,16 @@ def main():
     temp_dir = get_temp_dir()
     os.makedirs(temp_dir, exist_ok=True)
     set_temp_dir(temp_dir)
+
+    # ---- First-launch language selection ----
+    # Show the language picker only if the user has never configured it.
+    # After the first choice, the flag "general/language_configured" is set
+    # and the dialog will never appear again automatically.
+    settings = get_settings()
+    if not settings.value("general/language_configured", False, type=bool):
+        lang_dialog = LanguageSelectDialog()
+        lang_dialog.exec_()
+        # LanguageSelectDialog saves the choice + configured flag internally
 
     # Check MuseScore availability
     musescore_path = check_musescore_on_startup()

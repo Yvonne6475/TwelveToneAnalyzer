@@ -234,6 +234,8 @@ class MainWindow(QMainWindow):
         if lang == current:
             return
         set_language(lang)
+        from src.utils.config import get_settings
+        get_settings().setValue("general/language_configured", True)
         reply = QMessageBox.question(
             self, tr("dialog.restart_title"), tr("dialog.restart_lang_msg"),
             QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
