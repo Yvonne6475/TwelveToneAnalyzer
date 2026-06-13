@@ -172,7 +172,11 @@ class MainWindow(QMainWindow):
         return get_musescore_path()
 
     def set_score(self, score, path=""):
-        from src.core.score_analyzer import get_measure_range
+        from src.core.score_analyzer import get_measure_range, normalize_score
+
+        # Normalize Opus → Score so all downstream code works
+        score = normalize_score(score)
+
         self._score = score
         self._score_path = path
 

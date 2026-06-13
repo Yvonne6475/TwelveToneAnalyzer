@@ -42,6 +42,51 @@ def diagnose_part(part, index: int) -> PartDiagnosis | None:
     )
 
 
+def normalize_score(score):
+    """Convert an Opus into a single Score, or return the Score/Part as-is.
+
+    Many ABC / Humdrum files parse as an Opus containing multiple Scores.
+    The rest of the app expects a single Score with .parts / .measures() etc.
+    This function unwraps the Opus layer so downstream code works unchanged.
+    """
+    from music21.stream import Opus as M21Opus
+    from music21.stream import Score as M21Score
+    from music21.stream import Part as M21Part
+    from music21 import stream as m21stream
+
+    # ── Already a Score or Part ────────────────────────────────────
+    if isinstance(score, M21Score) or isinstance(score, M21Part):
+        return score
+
+    # ── Opus: merge all child Scores into one ──────────────────────
+    if isinstance(score, M21Opus):
+        merged = M21Score()
+        for child in score.scores:
+            if isinstance(child, M21Score):
+                for part in child.parts:
+                    merged.insert(0, part)
+            elif isinstance(child, M21Part):
+                merged.insert(0, child)
+        # Copy metadata from first child
+        if score.scores:
+            first = score.scores[0]
+            if first.metadata:
+                merged.metadata = first.metadata
+        return merged
+
+    # ── Generic stream: try to extract Score/Opus from within ─────
+    if hasattr(score, 'recurse'):
+        scores_inside = list(score.recurse().getElementsByClass(M21Score))
+        if scores_inside:
+            merged = M21Score()
+            for s in scores_inside:
+                for part in s.parts:
+                    merged.insert(0, part)
+            return merged
+
+    return score
+
+
 def _collect_parts(score) -> list:
     """Recursively unpack Opus → Score(s) → Part(s).  Returns a flat list of
     music21 Part objects, preserving their order of appearance."""
