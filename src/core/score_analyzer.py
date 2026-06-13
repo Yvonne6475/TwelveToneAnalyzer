@@ -19,7 +19,13 @@ class PartDiagnosis:
     instruments: list[str]
 
 
-def diagnose_part(part, index: int) -> PartDiagnosis:
+def diagnose_part(part, index: int) -> PartDiagnosis | None:
+    """Diagnose a single music21 Part.  Returns None for non-Part inputs."""
+    from music21.stream import Part as M21Part
+
+    if not isinstance(part, M21Part):
+        return None
+
     notes = [n for n in part.recurse().notes]
     pitches = [n.pitch.midi for n in notes if n.isNote]
 
@@ -36,31 +42,108 @@ def diagnose_part(part, index: int) -> PartDiagnosis:
     )
 
 
-def diagnose_all_parts(score) -> list[PartDiagnosis]:
-    diagnostics = []
+def _collect_parts(score) -> list:
+    """Recursively unpack Opus → Score(s) → Part(s).  Returns a flat list of
+    music21 Part objects, preserving their order of appearance."""
+    from music21.stream import Opus as M21Opus
+    from music21.stream import Score as M21Score
+    from music21.stream import Part as M21Part
+
+    parts: list = []
+
+    # ── Opus: unpack each child Score ──────────────────────────────
+    if isinstance(score, M21Opus):
+        for child in score.scores:
+            parts.extend(_collect_parts(child))
+        return parts
+
+    # ── Score: collect its parts ───────────────────────────────────
+    if isinstance(score, M21Score):
+        try:
+            for p in score.parts:
+                if isinstance(p, M21Part):
+                    parts.append(p)
+            return parts
+        except (AttributeError, TypeError):
+            pass
+
+    # ── Already a Part ─────────────────────────────────────────────
+    if isinstance(score, M21Part):
+        return [score]
+
+    # ── Fallback: try .recurse() to find embedded Parts ────────────
     try:
-        for i, part in enumerate(score.parts):
-            d = diagnose_part(part, i)
+        for el in score.recurse():
+            if isinstance(el, M21Part):
+                parts.append(el)
+    except Exception:
+        pass
+
+    return parts
+
+
+def diagnose_all_parts(score) -> list[PartDiagnosis]:
+    """Diagnose every Part found inside *score* (Opus / Score / Part)."""
+    parts = _collect_parts(score)
+    diagnostics: list[PartDiagnosis] = []
+
+    for i, part in enumerate(parts):
+        d = diagnose_part(part, i)
+        if d is not None:
             diagnostics.append(d)
-    except (AttributeError, IndexError):
-        # Score has no parts (single-part score) or parts iterator failed
+
+    # Last resort: if nothing was found, treat the whole stream as one
+    if not diagnostics:
         d = diagnose_part(score, 0)
-        diagnostics.append(d)
+        if d is not None:
+            diagnostics.append(d)
+        elif hasattr(score, 'recurse'):
+            # Build a synthetic diagnosis from the flattened content
+            notes = [n for n in score.recurse().notes]
+            pitches = [n.pitch.midi for n in notes if hasattr(n, 'isNote') and n.isNote]
+            diagnostics.append(PartDiagnosis(
+                index=0,
+                part_name=getattr(score, 'partName', None) or "Unnamed",
+                note_count=len(notes),
+                note_only_count=len([n for n in notes if hasattr(n, 'isNote') and n.isNote]),
+                chord_count=len([n for n in notes if hasattr(n, 'isChord') and n.isChord]),
+                avg_pitch=round(sum(pitches) / len(pitches), 2) if pitches else None,
+                pitch_range=(min(pitches), max(pitches)) if pitches else None,
+                staff_count=0,
+                instruments=[],
+            ))
+
     return diagnostics
 
 
 def get_measure_range(score) -> tuple:
+    """Return (min_measure, max_measure) for a Score, Opus, or Part."""
+    from music21.stream import Opus as M21Opus
+
     measures = []
+
+    # ── Opus: collect from every child Score ──────────────────────
+    if isinstance(score, M21Opus):
+        for child in score.scores:
+            try:
+                for part in child.parts:
+                    measures.extend(part.getElementsByClass('Measure'))
+            except (AttributeError, IndexError):
+                pass
+
+    # ── Score / Part ──────────────────────────────────────────────
     try:
         for part in score.parts:
             measures.extend(part.getElementsByClass('Measure'))
     except (AttributeError, IndexError):
         pass
+
     if not measures:
         try:
             measures = list(score.flatten().getElementsByClass('Measure'))
         except Exception:
             pass
+
     if measures:
         nums = [m.number for m in measures if m.number is not None]
         if nums:
