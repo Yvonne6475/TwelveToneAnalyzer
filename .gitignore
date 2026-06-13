@@ -1,0 +1,30 @@
+# Virtual environment
+.venv/
+
+# IDE
+.idea/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# PyInstaller build output
+dist/
+build/
+
+# Packaged distributions / installers
+*.zip
+*.exe
+
+# NSIS portable
+nsis_portable/
+nsis.zip
+
+# Temporary test files
+temp.xml
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
