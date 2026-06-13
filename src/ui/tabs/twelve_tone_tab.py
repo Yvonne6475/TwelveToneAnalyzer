@@ -18,6 +18,7 @@ from src.core.score_analyzer import (
 from src.ui.widgets.score_opener import setup_open_menu
 from src.ui.widgets.matrix_widget import MatrixWidget
 from src.utils.i18n import tr
+from src.ui.theme import default_save_path
 
 
 class TwelveToneTab(QWidget):
@@ -287,7 +288,7 @@ class TwelveToneTab(QWidget):
         if not self._row:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("tt.export_matrix"), "12_tone_matrix.png",
+            self, tr("tt.export_matrix"), default_save_path("12_tone_matrix.png"),
             "PNG (*.png);;All Files (*)"
         )
         if not path:
@@ -309,7 +310,7 @@ class TwelveToneTab(QWidget):
         if not self._last_groups:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("tt.save_row_png"), "row_groups.png",
+            self, tr("tt.save_row_png"), default_save_path("row_groups.png"),
             "PNG (*.png);;All Files (*)"
         )
         if not path:

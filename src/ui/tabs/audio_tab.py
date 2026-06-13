@@ -21,6 +21,7 @@ from src.core.audio_analyzer import (
     segment_structure, frames_to_time,
 )
 from src.utils.i18n import tr, tr_list
+from src.ui.theme import default_save_path
 
 
 class AudioTab(QWidget):
@@ -327,7 +328,7 @@ class AudioTab(QWidget):
 
     def _on_save_plot(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("audio.save_png"), "audio_analysis.png",
+            self, tr("audio.save_png"), default_save_path("audio_analysis.png"),
             "PNG (*.png);;All Files (*)"
         )
         if path:

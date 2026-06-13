@@ -317,6 +317,8 @@ TRANSLATIONS = {
     "lattice.collections_empty": {"zh": "请输入至少一组音级集合。", "en": "Please enter at least one pitch-class set."},
     "lattice.save_png": {"zh": "保存包含格图", "en": "Save Lattice Plot"},
     "lattice.saved": {"zh": "保存完成", "en": "Save Complete"},
+    "lattice.no_fig": {"zh": "没有可保存的图形，请先生成包含格。", "en": "No figure to save. Please generate a lattice first."},
+    "lattice.save_permission_error": {"zh": "保存失败：当前路径无写入权限，请更换保存文件夹。\n\n错误详情：{error}", "en": "Save failed: no write permission for the selected path.\nPlease choose a different folder.\n\nDetail: {error}"},
 }
 
 

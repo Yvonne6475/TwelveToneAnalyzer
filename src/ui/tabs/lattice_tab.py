@@ -18,6 +18,7 @@ from src.core.inclusion_lattice import (
 from src.ui.widgets.score_opener import setup_open_menu
 from src.ui.widgets.plot_canvas import PlotCanvas
 from src.utils.i18n import tr
+from src.ui.theme import default_save_path
 
 
 class LatticeTab(QWidget):
@@ -306,11 +307,25 @@ class LatticeTab(QWidget):
         self._draw_lattice(pc_set, self._spin_min.value(), self._spin_max.value())
 
     def _on_save(self):
+        if self._canvas is None or self._canvas.fig is None:
+            QMessageBox.warning(self, tr("lattice.saved"), tr("lattice.no_fig"))
+            return
+
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("lattice.save_png"), "inclusion_lattice.png",
+            self, tr("lattice.save_png"), default_save_path("inclusion_lattice.png"),
             "PNG (*.png);;All Files (*)"
         )
-        if path:
+        if not path:
+            return
+
+        try:
             self._canvas.fig.savefig(path, dpi=150, bbox_inches='tight')
-            QMessageBox.information(self, tr("lattice.saved"),
-                                    tr("dialog.saved_to", path=path))
+        except (OSError, PermissionError) as e:
+            QMessageBox.critical(
+                self, tr("lattice.saved"),
+                tr("lattice.save_permission_error", error=str(e))
+            )
+            return
+
+        QMessageBox.information(self, tr("lattice.saved"),
+                                tr("dialog.saved_to", path=path))

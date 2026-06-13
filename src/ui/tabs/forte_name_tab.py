@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
 from music21 import chord
 
 from src.utils.i18n import tr, tr_list
+from src.ui.theme import default_save_path
 
 
 class ForteNameTab(QWidget):
@@ -110,7 +111,7 @@ class ForteNameTab(QWidget):
 
     def _on_export_csv(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("forte.save_csv"), "forte_analysis.csv",
+            self, tr("forte.save_csv"), default_save_path("forte_analysis.csv"),
             "CSV (*.csv);;All Files (*)"
         )
         if not path:

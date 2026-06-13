@@ -1,7 +1,18 @@
 """Music-inspired light theme for the Twelve-Tone Analyzer. Supports font size scaling."""
 
+import os
+
 from PyQt5.QtGui import QFont
+from PyQt5.QtCore import QStandardPaths
 from src.utils.config import get_settings
+
+
+def default_save_path(filename: str) -> str:
+    """Return a safe default save path (Desktop, never CWD which may be read-only)."""
+    d = QStandardPaths.writableLocation(QStandardPaths.DesktopLocation)
+    if not d or not os.path.isdir(d):
+        d = os.path.expanduser("~")
+    return os.path.join(d, filename)
 
 
 # Color palette — elegant music score aesthetic

@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from src.core.score_analyzer import get_measure_range
 from src.ui.widgets.score_opener import setup_open_menu
 from src.utils.i18n import tr, tr_list
+from src.ui.theme import default_save_path
 
 
 class VisualizationTab(QWidget):
@@ -175,7 +176,7 @@ class VisualizationTab(QWidget):
         }
         default_name = _plot_names.get(getattr(self, '_current_plot_idx', -1), "plot.png")
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("viz.save_png"), default_name,
+            self, tr("viz.save_png"), default_save_path(default_name),
             "PNG (*.png);;All Files (*)"
         )
         if not path:
