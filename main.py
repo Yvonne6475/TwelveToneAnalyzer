@@ -67,6 +67,7 @@ from src.ui.theme import apply_theme
 from src.ui.dialogs.musescore_prompt import check_musescore_on_startup
 from src.ui.dialogs.language_select_dialog import LanguageSelectDialog
 from src.utils.config import set_temp_dir, get_temp_dir, get_settings
+from src.utils.i18n import load_language
 
 
 def _exception_hook(exctype, value, tb):
