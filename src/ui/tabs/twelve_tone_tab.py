@@ -17,8 +17,9 @@ from src.core.score_analyzer import (
 )
 from src.ui.widgets.score_opener import setup_open_menu
 from src.ui.widgets.matrix_widget import MatrixWidget
+from src.ui.widgets.collapsible_panel import CollapsiblePanel
 from src.utils.i18n import tr
-from src.ui.theme import default_save_path
+from src.ui.theme import default_save_path, matrix_text_stylesheet
 
 
 class TwelveToneTab(QWidget):
@@ -34,7 +35,7 @@ class TwelveToneTab(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
 
-        # Open score button
+        # ── Open score button ────────────────────────────────────────
         top_bar = QHBoxLayout()
         self._btn_open = QPushButton(tr("tab.open_score"))
         setup_open_menu(self._btn_open, self, lambda score, path: self._main_window.set_score(score, path))
@@ -42,7 +43,7 @@ class TwelveToneTab(QWidget):
         top_bar.addStretch()
         layout.addLayout(top_bar)
 
-        # Row extraction
+        # ── Row extraction (unchanged) ───────────────────────────────
         extract_group = QGroupBox(tr("tt.extract_group"))
         extract_layout = QVBoxLayout(extract_group)
 
@@ -73,7 +74,7 @@ class TwelveToneTab(QWidget):
 
         layout.addWidget(extract_group)
 
-        # Forms display
+        # ── Forms display (unchanged) ─────────────────────────────────
         forms_group = QGroupBox(tr("tt.forms_group"))
         forms_layout = QVBoxLayout(forms_group)
         self._forms_text = QTextEdit()
@@ -83,24 +84,54 @@ class TwelveToneTab(QWidget):
         forms_layout.addWidget(self._forms_text)
         layout.addWidget(forms_group)
 
-        # Matrix
+        # ═══════════════════════════════════════════════════════════════
+        # Matrix area — wrapped in a QScrollArea for cross-platform
+        # overflow protection.  When the collapsible Row Grouping panel
+        # is expanded, or on small screens, the matrix scrolls vertically
+        # instead of being clipped.  Horizontal scrollbar appears only
+        # when needed (narrow window).
+        # ═══════════════════════════════════════════════════════════════
+        self._matrix_scroll_container = QScrollArea()
+        self._matrix_scroll_container.setWidgetResizable(True)
+        self._matrix_scroll_container.setMinimumHeight(300)
+        # Horizontal: always show full content, no wrapping
+        self._matrix_scroll_container.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
         matrix_group = QGroupBox(tr("tt.matrix_group"))
         matrix_layout = QVBoxLayout(matrix_group)
+
+        # Heatmap (kept compact — shows on click)
         self._matrix_widget = MatrixWidget(self)
         self._matrix_scroll = QScrollArea()
         self._matrix_scroll.setWidgetResizable(False)
         self._matrix_scroll.setWidget(self._matrix_widget)
         self._matrix_scroll.setMinimumHeight(400)
         matrix_layout.addWidget(self._matrix_scroll, 1)
+
+        # Numeric matrix (flexible height, no hard max to avoid clipping)
         self._matrix_numeric = QTextEdit()
         self._matrix_numeric.setReadOnly(True)
-        self._matrix_numeric.setMaximumHeight(180)
-        self._matrix_numeric.setMinimumHeight(120)
-        self._matrix_numeric.setStyleSheet("font-family: Consolas, monospace; font-size: 19px;")
+        self._matrix_numeric.setMinimumHeight(200)
+        # No setMaximumHeight — let the scroll area handle overflow naturally
+        self._matrix_numeric.setStyleSheet(matrix_text_stylesheet(19))
         matrix_layout.addWidget(self._matrix_numeric)
-        layout.addWidget(matrix_group, 6)
 
-        # Row grouping
+        self._matrix_scroll_container.setWidget(matrix_group)
+        layout.addWidget(self._matrix_scroll_container, 6)
+
+        # ═══════════════════════════════════════════════════════════════
+        # Row Grouping — reusable CollapsiblePanel (cross-platform)
+        # The panel is hidden by default and toggled via a button below.
+        # On both Windows and macOS the interaction is identical;
+        # only the title-bar styling is platform-adaptive (inside the
+        # CollapsiblePanel widget).
+        # ═══════════════════════════════════════════════════════════════
+        self._row_panel = CollapsiblePanel(
+            title="Row Grouping Controls", parent=self, visible=False,
+        )
+        panel_content = self._row_panel.content_layout()
+
+        # --- Row grouping content (unchanged) ---
         row_group = QGroupBox(tr("tt.row_group"))
         row_layout = QVBoxLayout(row_group)
 
@@ -141,10 +172,27 @@ class TwelveToneTab(QWidget):
         show_row.addStretch()
         row_layout.addLayout(show_row)
 
-        layout.addWidget(row_group)
+        panel_content.addWidget(row_group)
+        layout.addWidget(self._row_panel)
 
-        # Export buttons
+        # ═══════════════════════════════════════════════════════════════
+        # Bottom bar: toggle panel button + export buttons
+        # ═══════════════════════════════════════════════════════════════
         export_row = QHBoxLayout()
+
+        # Toggle button — wired to CollapsiblePanel.toggle()
+        self._btn_toggle_panel = QPushButton("▸ Open Row Grouping Panel")
+        self._btn_toggle_panel.setProperty("accent", "teal")
+        self._btn_toggle_panel.setToolTip(
+            "Show/hide trichord/tetrachord/hexachord grouping controls"
+        )
+        self._btn_toggle_panel.clicked.connect(self._row_panel.toggle)
+        # Sync button text with panel visibility
+        self._row_panel.toggled.connect(self._on_panel_toggled)
+        export_row.addWidget(self._btn_toggle_panel)
+
+        export_row.addStretch()
+
         self._btn_export_forms = QPushButton(tr("tt.btn_export_forms"))
         self._btn_export_forms.setEnabled(False)
         self._btn_export_forms.clicked.connect(self._on_export_forms)
@@ -154,8 +202,17 @@ class TwelveToneTab(QWidget):
         self._btn_export_matrix.setEnabled(False)
         self._btn_export_matrix.clicked.connect(self._on_export_matrix)
         export_row.addWidget(self._btn_export_matrix)
+
         export_row.addStretch()
         layout.addLayout(export_row)
+
+    # ── Collapsible panel toggle (cross-platform) ────────────────
+    def _on_panel_toggled(self, visible: bool):
+        """Sync the toggle button text with panel visibility."""
+        if visible:
+            self._btn_toggle_panel.setText("▾ Close Row Grouping Panel")
+        else:
+            self._btn_toggle_panel.setText("▸ Open Row Grouping Panel")
 
     def on_score_loaded(self, score, path: str):
         self._score = score
@@ -209,7 +266,7 @@ class TwelveToneTab(QWidget):
             text = text.replace(",", " ").replace(";", " ")
             nums = list(map(int, text.split()))
             if len(nums) != 12:
-                QMessageBox.warning(self, tr("tt.input_error"), tr("tt.input_count_err", **{"0": str(len(nums))}))
+                QMessageBox.warning(self, tr("tt.input_error"), tr("tt.input_count_err", count=str(len(nums))))
                 return
             if not all(0 <= x <= 11 for x in nums):
                 QMessageBox.warning(self, tr("tt.input_error"), tr("tt.input_range_err"))
@@ -232,18 +289,35 @@ class TwelveToneTab(QWidget):
         # Numeric matrix
         matrix = generate_matrix(self._row)
 
-        def _pc_label(pc):
-            if pc == 10:
-                return " A"
-            elif pc == 11:
-                return " B"
-            else:
-                return f"{pc:>2d}"
-
         lines = []
+
+        # Helper: format a pitch-class for the matrix body (2 chars)
+        def _pc_label(pc):
+            return f"{pc:>2d}"
+
+        # Helper: format an edge label like "P6", "I10", "R2", "RI5"
+        def _edge(letter, pc):
+            return f"{letter}{pc:>2d}"
+
+        # Padding to align header/footer with data columns
+        # Data cells are 2 chars each, separated by "  " (2 spaces)
+        COL_GAP = "  "
+        PAD = " " * 6  # offset past the left I-label area
+
+        # ---- P header row (top) ----
+        p_labels = [_edge("P", matrix[0, j]) for j in range(12)]
+        lines.append(PAD + COL_GAP.join(f"{lbl:>4}" for lbl in p_labels))
+
+        # ---- Data rows (with I on left, R on right) ----
         for i, r in enumerate(matrix):
-            prefix = f"P{r[0]:>2d}" if i == 0 else f" I{r[0]:>2d}"
-            lines.append(prefix + "  " + "  ".join(_pc_label(v) for v in r))
+            prefix = f" P{r[0]:>2d}" if i == 0 else f" I{r[0]:>2d}"
+            suffix = _edge("R", r[-1])
+            lines.append(f"{prefix}  " + COL_GAP.join(_pc_label(v) for v in r) + f"  {suffix}")
+
+        # ---- RI footer row (bottom) ----
+        ri_labels = [_edge("RI", matrix[-1, j]) for j in range(12)]
+        lines.append(PAD + COL_GAP.join(f"{lbl:>4}" for lbl in ri_labels))
+
         self._matrix_numeric.setText("\n".join(lines))
 
         for btn in [self._btn_trichords, self._btn_tetrachords, self._btn_hexachords,
@@ -253,6 +327,9 @@ class TwelveToneTab(QWidget):
     def _on_divide(self, group_size: int):
         if not self._row:
             return
+        # Auto-expand the row grouping panel so the user sees the result
+        if not self._row_panel.isVisible():
+            self._row_panel.expand()
         self._last_groups = divide_into_chords(self._row, group_size)
         lines = []
         for i, c in enumerate(self._last_groups):

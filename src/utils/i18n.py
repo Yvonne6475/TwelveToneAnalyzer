@@ -129,9 +129,26 @@ TRANSLATIONS = {
     # About
     "about.title": {"zh": "关于", "en": "About"},
     "about.text": {
-        "zh": "十二音音乐分析软件 v1.2\n\n基于 music21 和 PyQt5 构建\n专为十二音序列音乐分析设计\n\n依赖: music21, PyQt5, matplotlib, numpy, librosa",
-        "en": "Twelve-Tone Music Analyzer v1.2\n\nBuilt with music21 and PyQt5\nDesigned for twelve-tone serial music analysis\n\nDependencies: music21, PyQt5, matplotlib, numpy, librosa",
+        "zh": "十二音音乐分析软件 v1.3\n\n基于 music21 和 PyQt5 构建\n专为十二音序列音乐分析设计\n\n依赖: music21, PyQt5, matplotlib, numpy, librosa",
+        "en": "Twelve-Tone Music Analyzer v1.3\n\nBuilt with music21 and PyQt5\nDesigned for twelve-tone serial music analysis\n\nDependencies: music21, PyQt5, matplotlib, numpy, librosa",
     },
+
+    # Update checker
+    "update.title": {"zh": "发现新版本", "en": "New Version Available"},
+    "update.heading": {"zh": "TwelveToneAnalyzer v{version} 已发布", "en": "TwelveToneAnalyzer v{version} is available"},
+    "update.current": {"zh": "当前版本: v{current}", "en": "Current version: v{current}"},
+    "update.size": {"zh": "大小: {size}", "en": "Size: {size}"},
+    "update.desc_label": {"zh": "更新内容:", "en": "What's new:"},
+    "update.btn_download": {"zh": "下载并安装", "en": "Download & Install"},
+    "update.btn_skip": {"zh": "跳过此版本", "en": "Skip This Version"},
+    "update.btn_remind": {"zh": "稍后提醒", "en": "Remind Later"},
+    "update.uptodate": {"zh": "已是最新版本", "en": "Up to Date"},
+    "update.uptodate_msg": {"zh": "您正在使用最新版本 v{version}。", "en": "You are running the latest version v{version}."},
+    "update.error": {"zh": "检查更新失败", "en": "Update Check Failed"},
+    "update.error_msg": {"zh": "无法连接到 GitHub 检查更新。\n\n{detail}\n\n请检查网络连接后重试。", "en": "Could not connect to GitHub to check for updates.\n\n{detail}\n\nPlease check your network and try again."},
+    "update.downloading": {"zh": "正在下载... {percent}%", "en": "Downloading... {percent}%"},
+    "update.download_complete": {"zh": "下载完成！\n\n安装程序已保存至:\n{path}\n\n是否立即打开安装程序？\n（应用将关闭以完成更新）", "en": "Download complete!\n\nInstaller saved to:\n{path}\n\nOpen the installer now?\n(The app will close to complete the update.)"},
+    "menu.help.check_update": {"zh": "检查更新...", "en": "Check for Updates..."},
 
     # Musescore prompt
     "ms.title": {"zh": "MuseScore 4 未找到", "en": "MuseScore 4 Not Found"},
@@ -204,7 +221,7 @@ TRANSLATIONS = {
     "tt.btn_confirm": {"zh": "确认音列", "en": "Confirm Row"},
     "tt.extract_failed": {"zh": "提取失败", "en": "Extraction Failed"},
     "tt.input_error": {"zh": "输入错误", "en": "Input Error"},
-    "tt.input_count_err": {"zh": "需要12个数字，当前{0}个。", "en": "Need 12 numbers, got {0}."},
+    "tt.input_count_err": {"zh": "需要12个数字，当前{count}个。", "en": "Need 12 numbers, got {count}."},
     "tt.input_range_err": {"zh": "数字范围必须是 0~11。", "en": "Numbers must be in range 0~11."},
     "tt.input_format_err": {"zh": "包含非数字字符。", "en": "Non-numeric characters found."},
     "tt.forms_group": {"zh": "P / I / R / RI 四种形式", "en": "P / I / R / RI Forms"},

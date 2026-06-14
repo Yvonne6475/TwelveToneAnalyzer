@@ -7,10 +7,16 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 
 from src.utils.config import detect_musescore, set_musescore_path
-from src.utils.i18n import tr
+from src.utils.i18n import tr, current_language
+
+MUSESCORE_DOWNLOAD_URLS = {
+    "zh": "https://musescore.org/zh-hans/download",
+    "en": "https://musescore.org/en/download",
+}
 
 
-MUSESCORE_DOWNLOAD_URL = "https://musescore.org/zh-hans/download"
+def _musescore_download_url() -> str:
+    return MUSESCORE_DOWNLOAD_URLS.get(current_language(), MUSESCORE_DOWNLOAD_URLS["en"])
 
 
 class MuseScorePromptDialog(QDialog):
@@ -53,7 +59,7 @@ class MuseScorePromptDialog(QDialog):
         layout.addWidget(btn_skip)
 
     def _on_download(self):
-        webbrowser.open(MUSESCORE_DOWNLOAD_URL)
+        webbrowser.open(_musescore_download_url())
         self.reject()
 
     def _on_browse(self):

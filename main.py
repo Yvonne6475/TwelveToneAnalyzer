@@ -113,8 +113,12 @@ def main():
         lang_dialog = LanguageSelectDialog()
         lang_dialog.exec_()
         # LanguageSelectDialog saves the choice + configured flag internally
+    else:
+        # Load saved language BEFORE MuseScore check so the prompt
+        # respects the user's previously chosen language.
+        load_language()
 
-    # Check MuseScore availability
+    # Check MuseScore availability (uses tr(), needs language loaded above)
     musescore_path = check_musescore_on_startup()
 
     # Create and show main window (centered, reasonable default size)
@@ -128,6 +132,23 @@ def main():
         qr.moveCenter(cp)
         window.move(qr.topLeft())
     window.show()
+
+    # ── Startup update check (non-blocking, silent on error) ──────
+    # Runs 2 seconds after the main window appears, so it doesn't
+    # delay startup. Only shows a dialog if a new version is found.
+    def _startup_update_check():
+        from src.core.updater import check_for_updates
+        from src.ui.dialogs.update_dialog import UpdateDialog
+        try:
+            info = check_for_updates(timeout=5)
+            if info is not None:
+                dlg = UpdateDialog(info, window)
+                dlg.exec_()
+        except Exception:
+            pass  # Silent — network issues shouldn't bother the user at startup
+
+    from PyQt5.QtCore import QTimer
+    QTimer.singleShot(2000, _startup_update_check)
 
     sys.exit(app.exec_())
 

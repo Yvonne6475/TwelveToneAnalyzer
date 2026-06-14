@@ -62,6 +62,26 @@ class _LoadWorker(QObject):
                 self.error.emit(str(e))
 
 
+# Track active loader thread so rapid reloads don't orphan workers.
+_active_worker: _LoadWorker | None = None
+_active_thread: QThread | None = None
+
+
+def _cleanup_active_loader():
+    """Cancel and clean up the currently running loader (if any)."""
+    global _active_worker, _active_thread
+    if _active_worker is not None:
+        _active_worker.cancel()
+    if _active_thread is not None:
+        _active_thread.quit()
+        if not _active_thread.wait(3000):
+            _active_thread.terminate()
+        _active_thread.deleteLater()
+        _active_worker.deleteLater()
+    _active_worker = None
+    _active_thread = None
+
+
 def load_score_async(parent, on_ready, task: str, *args):
     """Run a score-loading task in a background thread.
 
@@ -74,20 +94,30 @@ def load_score_async(parent, on_ready, task: str, *args):
 
 
 def _spawn_worker(parent, on_ready, task: str, *args):
+    global _active_worker, _active_thread
+
+    # Cancel any previous loader still running
+    _cleanup_active_loader()
+
     QApplication.setOverrideCursor(Qt.WaitCursor)
 
     thread = QThread(parent)
     worker = _LoadWorker()
     worker.moveToThread(thread)
 
+    _active_thread = thread
+    _active_worker = worker
+
     def _on_finished(score, path):
         QApplication.restoreOverrideCursor()
         thread.quit()
+        _cleanup_active_loader()
         on_ready(score, path)
 
     def _on_error(msg):
         QApplication.restoreOverrideCursor()
         thread.quit()
+        _cleanup_active_loader()
         QMessageBox.critical(parent, tr("dialog.load_failed"), msg)
 
     worker.finished.connect(_on_finished)

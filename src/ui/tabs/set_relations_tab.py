@@ -154,13 +154,22 @@ class SetRelationsTab(QWidget):
         self._thread.start()
 
     def _cleanup_thread(self):
-        """Cancel any running worker and disconnect old signals."""
-        if self._worker is not None:
-            self._worker.cancel()
-            self._worker.analysis_ready.disconnect(self._on_analysis_done)
-            self._worker.nexus_ready.disconnect(self._on_nexus_done)
-            self._worker.error.disconnect(self._on_worker_error)
-            self._worker.progress.disconnect(self._on_progress)
+        """Cancel any running worker, quit the thread, and disconnect signals."""
+        if self._thread is not None:
+            if self._worker is not None:
+                self._worker.cancel()
+                try:
+                    self._worker.analysis_ready.disconnect(self._on_analysis_done)
+                    self._worker.nexus_ready.disconnect(self._on_nexus_done)
+                    self._worker.error.disconnect(self._on_worker_error)
+                    self._worker.progress.disconnect(self._on_progress)
+                except TypeError:
+                    pass  # Already disconnected
+            self._thread.quit()
+            if not self._thread.wait(3000):
+                self._thread.terminate()
+            self._thread.deleteLater()
+            self._worker.deleteLater()
         self._thread = None
         self._worker = None
 

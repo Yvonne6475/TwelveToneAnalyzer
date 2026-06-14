@@ -1,10 +1,24 @@
-"""Music-inspired light theme for the Twelve-Tone Analyzer. Supports font size scaling."""
+"""Music-inspired light theme for the Twelve-Tone Analyzer. Supports font size scaling.
+
+Cross-platform notes
+────────────────────
+- IS_MAC / IS_WIN drive platform-specific branches below.
+- Scrollbar custom CSS is applied on Windows only; macOS uses native Aqua scrollbars
+  which look correct with the music-score palette without overrides.
+- Monospace font stack differs between platforms; see monospace_font_family().
+"""
 
 import os
+import sys
 
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import QStandardPaths
 from src.utils.config import get_settings
+
+
+# ── Platform detection ─────────────────────────────────────────────
+IS_MAC = sys.platform == "darwin"
+IS_WIN = sys.platform == "win32"
 
 
 def default_save_path(filename: str) -> str:
@@ -13,6 +27,35 @@ def default_save_path(filename: str) -> str:
     if not d or not os.path.isdir(d):
         d = os.path.expanduser("~")
     return os.path.join(d, filename)
+
+
+def monospace_font_family() -> str:
+    """Return the best available monospace font for the current platform.
+
+    Used by the 12-tone matrix numeric display and other code-like text.
+    """
+    if IS_MAC:
+        # SF Mono ships on macOS 10.11+; fall back to Menlo (10.6+) then Courier.
+        return '"SF Mono", "Menlo", "Courier New", monospace'
+    # Windows: Consolas is the standard; Courier New as fallback.
+    return '"Consolas", "Courier New", monospace'
+
+
+def matrix_text_stylesheet(font_size_pt: int = 19) -> str:
+    """Return a QTextEdit stylesheet for the numeric 12-tone matrix.
+
+    Uses the platform-appropriate monospace stack and disables ugly
+    selection backgrounds that clash with the music-score theme.
+    """
+    family = monospace_font_family()
+    return (
+        f"font-family: {family};"
+        f"font-size: {font_size_pt}px;"
+        "background-color: #fefdfb;"
+        "color: #2c2c2c;"
+        "selection-background-color: #d4c8b0;"
+        "selection-color: #2c2c2c;"
+    )
 
 
 # Color palette — elegant music score aesthetic
@@ -416,9 +459,28 @@ QSlider::handle:horizontal:hover {{
 
 
 def apply_theme(app):
-    """Apply the light music theme to the application."""
+    """Apply the light music theme to the application.
+
+    On macOS the custom scrollbar block is stripped so native Aqua
+    scrollbars are used — they already match the music-score aesthetic.
+    On Windows the warm beige custom scrollbars are applied.
+    """
     font_size = get_font_size()
-    app.setStyleSheet(build_stylesheet(font_size))
+    stylesheet = build_stylesheet(font_size)
+
+    if IS_MAC:
+        # Remove the /* === Scroll Bars === */ … block.
+        # macOS native scrollbars look correct with the light theme
+        # and follow system-wide scrollbar visibility preferences.
+        import re
+        stylesheet = re.sub(
+            r'/\* === Scroll Bars .*?\*/\s*.*?(?=/\* === Status Bar)',
+            '/* Scroll Bars: using native Aqua scrollbars on macOS */\n',
+            stylesheet,
+            flags=re.DOTALL,
+        )
+
+    app.setStyleSheet(stylesheet)
 
 
 def refresh_theme(app):

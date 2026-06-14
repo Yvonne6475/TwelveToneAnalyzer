@@ -110,6 +110,13 @@ class MainWindow(QMainWindow):
 
         # Help menu
         help_menu = mb.addMenu(tr("menu.help"))
+
+        act_check_update = QAction(tr("menu.help.check_update"), self)
+        act_check_update.triggered.connect(self._on_check_update)
+        help_menu.addAction(act_check_update)
+
+        help_menu.addSeparator()
+
         act_about = QAction(tr("menu.help.about"), self)
         act_about.triggered.connect(self._on_about)
         help_menu.addAction(act_about)
@@ -312,6 +319,33 @@ class MainWindow(QMainWindow):
 
     def _on_export_report(self):
         QMessageBox.information(self, tr("dialog.export_report"), tr("dialog.export_report_msg"))
+
+    def _on_check_update(self):
+        """Check for updates via GitHub Releases API."""
+        from src.core.updater import check_for_updates, VERSION
+        from src.ui.dialogs.update_dialog import UpdateDialog
+
+        try:
+            QApplication.setOverrideCursor(Qt.WaitCursor)
+            info = check_for_updates()
+            QApplication.restoreOverrideCursor()
+
+            if info is None:
+                QMessageBox.information(
+                    self,
+                    tr("update.uptodate"),
+                    tr("update.uptodate_msg", version=VERSION),
+                )
+            else:
+                dlg = UpdateDialog(info, self)
+                dlg.exec_()
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(
+                self,
+                tr("update.error"),
+                tr("update.error_msg", detail=str(e)),
+            )
 
     def _on_about(self):
         QMessageBox.about(self, tr("about.title"), tr("about.text"))
