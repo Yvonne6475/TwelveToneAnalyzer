@@ -117,6 +117,15 @@ if getattr(sys, 'frozen', False):
     os.makedirs(_mpl_dir, exist_ok=True)
     os.environ["MPLCONFIGDIR"] = _mpl_dir
 
+# ── Force matplotlib Qt backend before any PyQt5 import ─────────────
+# music21's plot() defaults to doneAction='write' which can launch
+# external image viewers.  Forcing Qt5Agg ensures figures stay in-process.
+try:
+    import matplotlib
+    matplotlib.use("Qt5Agg")
+except Exception:
+    pass
+
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from PyQt5.QtGui import QFont
 

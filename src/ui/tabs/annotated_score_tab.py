@@ -173,8 +173,9 @@ class AnnotatedScoreTab(QWidget):
     def _on_export_xml(self):
         if not self._validate():
             return
+        from src.utils.config import get_temp_dir
         output_dir = QFileDialog.getExistingDirectory(
-            self, tr("dialog.export_range_title"), ""
+            self, tr("dialog.export_range_title"), get_temp_dir()
         )
         if not output_dir:
             return
@@ -206,12 +207,15 @@ class AnnotatedScoreTab(QWidget):
     def _on_export_pdf(self):
         if not self._validate():
             return
+        from src.utils.config import get_temp_dir
         output_dir = QFileDialog.getExistingDirectory(
-            self, tr("dialog.export_range_title"), ""
+            self, tr("dialog.export_range_title"), get_temp_dir()
         )
         if not output_dir:
             return
         try:
+            from src.utils.config import configure_music21_environment
+            configure_music21_environment()
             excerpt = self._prepare_excerpt()
 
             piece_name = Path(self._score_path).stem if self._score_path else "analysis"

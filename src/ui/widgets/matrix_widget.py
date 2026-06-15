@@ -90,7 +90,7 @@ class MatrixWidget(QWidget):
             if self._heatmap_save_prompted:
                 from PyQt5.QtWidgets import QMessageBox, QFileDialog
                 from src.utils.i18n import tr
-                from src.ui.theme import default_save_path
+                from src.utils.config import temp_default_path
                 reply = QMessageBox.question(
                     self, tr("tt.matrix_group"),
                     tr("tt.heatmap_save_prompt"),
@@ -99,7 +99,7 @@ class MatrixWidget(QWidget):
                 if reply == QMessageBox.Yes:
                     path, _ = QFileDialog.getSaveFileName(
                         self, tr("tt.export_matrix"),
-                        default_save_path("12_tone_matrix_heatmap.png"),
+                        temp_default_path("12_tone_matrix_heatmap.png"),
                         "PNG (*.png);;All Files (*)",
                     )
                     if path:

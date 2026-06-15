@@ -19,7 +19,7 @@ from src.core.inclusion_lattice import (
 from src.ui.widgets.score_opener import setup_open_menu
 from src.ui.widgets.plot_canvas import PlotCanvas
 from src.utils.i18n import tr
-from src.ui.theme import default_save_path
+from src.utils.config import temp_default_path
 
 # ── Readability constants ───────────────────────────────────────────
 _MIN_FONT = 8          # minimum pt for node labels
@@ -492,7 +492,7 @@ class LatticeTab(QWidget):
             return
 
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("lattice.save_png"), default_save_path("inclusion_lattice.png"),
+            self, tr("lattice.save_png"), temp_default_path("inclusion_lattice.png"),
             "PNG (*.png);;All Files (*)"
         )
         if not path:

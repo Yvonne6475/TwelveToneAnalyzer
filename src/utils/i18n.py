@@ -62,6 +62,7 @@ TRANSLATIONS = {
     "dialog.url_prompt": {"zh": "从 URL 加载", "en": "Load from URL"},
     "dialog.url_label": {"zh": "输入乐谱文件的 URL (MusicXML/MIDI/MEI/ABC/KRN):", "en": "Enter URL of score file (MusicXML/MIDI/MEI/ABC/KRN):"},
     "dialog.url_placeholder": {"zh": "https://raw.githubusercontent.com/Yvonne6475/My-music-Corpus-Library/refs/heads/main/...", "en": "https://raw.githubusercontent.com/Yvonne6475/My-music-Corpus-Library/refs/heads/main/..."},
+    "dialog.save_download_as": {"zh": "保存下载的乐谱为", "en": "Save Downloaded Score As"},
     "dialog.corpus_library_link": {"zh": "打开软件作者曲库 (GitHub)", "en": "Open Author's Corpus Library (GitHub)"},
     "dialog.corpus_prompt": {"zh": "从 music21 曲库选择", "en": "Select from music21 Corpus"},
     "dialog.corpus_label": {"zh": "输入作品名称:", "en": "Enter work name:"},
@@ -145,8 +146,8 @@ TRANSLATIONS = {
     # About
     "about.title": {"zh": "关于", "en": "About"},
     "about.text": {
-        "zh": "十二音音乐分析软件 v1.3.3\n\n基于 music21 和 PyQt5 构建\n专为十二音序列音乐分析设计\n\n依赖: music21, PyQt5, matplotlib, numpy, librosa",
-        "en": "Twelve-Tone Music Analyzer v1.3.3\n\nBuilt with music21 and PyQt5\nDesigned for twelve-tone serial music analysis\n\nDependencies: music21, PyQt5, matplotlib, numpy, librosa",
+        "zh": "十二音音乐分析软件 v1.3.6\n\n基于 music21 和 PyQt5 构建\n专为十二音序列音乐分析设计\n\n依赖: music21, PyQt5, matplotlib, numpy, librosa",
+        "en": "Twelve-Tone Music Analyzer v1.3.6\n\nBuilt with music21 and PyQt5\nDesigned for twelve-tone serial music analysis\n\nDependencies: music21, PyQt5, matplotlib, numpy, librosa",
     },
 
     # Update checker

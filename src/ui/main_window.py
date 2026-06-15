@@ -13,7 +13,8 @@ from PyQt5.QtCore import Qt, QProcess
 
 from music21 import converter
 
-from src.ui.widgets.score_opener import load_score_async, prompt_url_dialog
+from src.ui.widgets.score_opener import (load_score_async, prompt_url_dialog,
+                                         prompt_download_save_path)
 from src.utils.config import get_temp_dir, get_musescore_path
 from src.utils.i18n import tr, tr_list, load_language, set_language, current_language
 
@@ -270,9 +271,13 @@ class MainWindow(QMainWindow):
 
     def _on_open_url(self):
         url = prompt_url_dialog(self, tr("dialog.url_prompt"), tr("dialog.url_label"))
-        if url:
-            self.statusBar().showMessage(tr("status.downloading"))
-            load_score_async(self, lambda s, p: self.set_score(s, p), "url", url)
+        if not url:
+            return
+        save_path = prompt_download_save_path(self, url)
+        if not save_path:
+            return
+        self.statusBar().showMessage(tr("status.downloading"))
+        load_score_async(self, lambda s, p: self.set_score(s, p), "url", url, save_path)
 
     def _on_open_github(self):
         url = prompt_url_dialog(
@@ -280,9 +285,13 @@ class MainWindow(QMainWindow):
             tr("dialog.github_prompt"), tr("dialog.github_label"),
             default_text="https://raw.githubusercontent.com/Yvonne6475/My-music-Corpus-Library/refs/heads/main/Luo's_String_Quartet_No.2_full_score.musicxml"
         )
-        if url:
-            self.statusBar().showMessage(tr("status.downloading_github"))
-            load_score_async(self, lambda s, p: self.set_score(s, p), "url", url)
+        if not url:
+            return
+        save_path = prompt_download_save_path(self, url)
+        if not save_path:
+            return
+        self.statusBar().showMessage(tr("status.downloading_github"))
+        load_score_async(self, lambda s, p: self.set_score(s, p), "url", url, save_path)
 
     def _on_open_corpus(self):
         from src.ui.widgets.score_opener import _prompt_corpus_name

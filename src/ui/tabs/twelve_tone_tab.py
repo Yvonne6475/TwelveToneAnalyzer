@@ -20,8 +20,8 @@ from src.ui.widgets.score_opener import setup_open_menu
 from src.ui.widgets.matrix_widget import MatrixWidget
 from src.ui.widgets.collapsible_panel import CollapsiblePanel
 from src.utils.i18n import tr
-from src.utils.config import show_score
-from src.ui.theme import default_save_path, matrix_text_stylesheet, monospace_font_family
+from src.utils.config import show_score, temp_default_path, get_temp_dir
+from src.ui.theme import matrix_text_stylesheet, monospace_font_family
 
 
 class TwelveToneTab(QWidget):
@@ -332,7 +332,7 @@ class TwelveToneTab(QWidget):
                 if ans == QMessageBox.Yes:
                     path, _ = QFileDialog.getSaveFileName(
                         self, tr("tt.export_matrix"),
-                        default_save_path("12_tone_matrix_heatmap.png"),
+                        temp_default_path("12_tone_matrix_heatmap.png"),
                         "PNG (*.png);;All Files (*)",
                     )
                     if path:
@@ -418,7 +418,7 @@ class TwelveToneTab(QWidget):
         if not self._row:
             return
         output_dir = QFileDialog.getExistingDirectory(
-            self, tr("tt.export_forms"), ""
+            self, tr("tt.export_forms"), get_temp_dir()
         )
         if not output_dir:
             return
@@ -439,7 +439,7 @@ class TwelveToneTab(QWidget):
                                 "Please open the heatmap first by clicking 'Show Matrix'.")
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("tt.export_matrix"), default_save_path("12_tone_matrix_heatmap.png"),
+            self, tr("tt.export_matrix"), temp_default_path("12_tone_matrix_heatmap.png"),
             "PNG (*.png);;All Files (*)"
         )
         if not path:
@@ -461,7 +461,7 @@ class TwelveToneTab(QWidget):
         if not self._last_groups:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("tt.save_row_png"), default_save_path("row_groups.png"),
+            self, tr("tt.save_row_png"), temp_default_path("row_groups.png"),
             "PNG (*.png);;All Files (*)"
         )
         if not path:

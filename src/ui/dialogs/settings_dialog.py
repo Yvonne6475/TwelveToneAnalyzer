@@ -93,7 +93,12 @@ class SettingsDialog(QDialog):
             set_musescore_path(ms_path)
         temp = self.temp_edit.text().strip()
         if temp:
-            os.makedirs(temp, exist_ok=True)
-            set_temp_dir(temp)
+            try:
+                os.makedirs(temp, exist_ok=True)
+                set_temp_dir(temp)
+            except OSError as e:
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.warning(self, tr("settings.title"), str(e))
+                return
         set_font_size(self.font_spin.value())
         self.accept()

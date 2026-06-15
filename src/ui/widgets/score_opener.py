@@ -5,6 +5,8 @@ keeping the UI responsive.
 """
 from __future__ import annotations
 
+import os
+
 from PyQt5.QtWidgets import (
     QMenu, QAction, QFileDialog, QMessageBox,
     QDialog, QVBoxLayout, QLabel, QLineEdit, QDialogButtonBox,
@@ -12,7 +14,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject
 
-from src.core.file_manager import load_local_file, download_from_url, parse_corpus
+from src.core.file_manager import (load_local_file, download_from_url, parse_corpus,
+                                  suggested_filename_from_url)
 from src.utils.i18n import tr
 
 
@@ -39,12 +42,14 @@ class _LoadWorker(QObject):
             if not self._cancelled:
                 self.error.emit(str(e))
 
-    def do_load_url(self, url: str):
+    def do_load_url(self, url: str, save_path: str | None = None):
         try:
             if self._cancelled:
                 return
             from src.utils.config import get_temp_dir
-            file_path, score = download_from_url(url, get_temp_dir())
+            file_path, score = download_from_url(
+                url, save_path=save_path, temp_dir=get_temp_dir()
+            )
             if not self._cancelled:
                 self.finished.emit(score, file_path)
         except Exception as e:
@@ -206,11 +211,29 @@ def prompt_url_dialog(parent, title: str, label: str, default_text: str = "") ->
     return ""
 
 
+def prompt_download_save_path(parent, url: str) -> str:
+    """Prompt the user for a save path with a default derived from the URL.
+
+    Returns the chosen path, or an empty string if the user cancelled.
+    """
+    from src.utils.config import get_temp_dir
+    default_path = os.path.join(get_temp_dir(), suggested_filename_from_url(url))
+    path, _ = QFileDialog.getSaveFileName(
+        parent, tr("dialog.save_download_as"),
+        default_path,
+        tr("dialog.open_score_filter")
+    )
+    return path
+
+
 def _open_url(parent, on_ready):
     url = prompt_url_dialog(parent, tr("dialog.url_prompt"), tr("dialog.url_label"))
     if not url:
         return
-    _spawn_worker(parent, on_ready, "url", url)
+    save_path = prompt_download_save_path(parent, url)
+    if not save_path:
+        return
+    _spawn_worker(parent, on_ready, "url", url, save_path)
 
 
 CORPUS_REFERENCE_URL = "https://music21.org/music21docs/about/referenceCorpus.html"

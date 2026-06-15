@@ -118,6 +118,9 @@ class ExportAnnotatedDialog(QDialog):
             xml_path = os.path.join(self._output_dir, f"{base}.musicxml")
             pdf_path = os.path.join(self._output_dir, f"{base}.pdf")
 
+            from src.utils.config import configure_music21_environment
+            configure_music21_environment()
+
             excerpt.write('musicxml', xml_path)
             try:
                 excerpt.write('musicxml.pdf', pdf_path)

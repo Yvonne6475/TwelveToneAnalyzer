@@ -10,6 +10,7 @@ from PyQt5.QtCore import Qt
 from music21 import chord
 
 from src.utils.i18n import tr, tr_list
+from src.utils.config import temp_default_path
 
 
 class ForteNameDialog(QDialog):
@@ -171,7 +172,7 @@ class ForteNameDialog(QDialog):
 
     def _on_export_csv(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("forte.save_csv"), "forte_analysis.csv",
+            self, tr("forte.save_csv"), temp_default_path("forte_analysis.csv"),
             "CSV (*.csv);;All Files (*)"
         )
         if not path:

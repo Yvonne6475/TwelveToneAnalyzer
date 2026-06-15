@@ -1,11 +1,12 @@
 """File manager: load local files and download from URL / GitHub."""
+from __future__ import annotations
 
 import os
 import re
 import hashlib
 import tempfile
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
 import requests
 from music21 import converter
@@ -91,22 +92,44 @@ def load_local_file(path: str):
         return converter.parse(path)
 
 
-def download_from_url(url: str, temp_dir: str) -> tuple:
-    """Download a music file from URL. Returns (file_path, score)."""
-    os.makedirs(temp_dir, exist_ok=True)
+def suggested_filename_from_url(url: str) -> str:
+    """Extract a human-readable filename from a URL.
 
+    Sanitises the path component so it is safe for the local filesystem.
+    Falls back to 'downloaded.musicxml' if no useful name can be derived.
+    """
+    parsed = urlparse(url)
+    name = Path(unquote(parsed.path)).name
+    name = re.sub(r'[<>:"/\\\\|?*]+', "_", name).strip()
+    if not name:
+        name = "downloaded.musicxml"
+    if not Path(name).suffix:
+        name += ".musicxml"
+    return name
+
+
+def download_from_url(url: str, save_path: str | None = None,
+                      temp_dir: str | None = None) -> tuple:
+    """Download a music file from URL. Returns (file_path, score).
+
+    Args:
+        url: The URL to download from.
+        save_path: If given, write the file to this exact path.
+        temp_dir: If *save_path* is not given, save to this directory
+            (defaults to system temp).
+    """
     response = requests.get(url)
     response.raise_for_status()
     content = response.content
 
-    file_hash = hashlib.md5(content).hexdigest()[:8]
+    if save_path:
+        file_path = save_path
+    else:
+        directory = temp_dir or tempfile.gettempdir()
+        os.makedirs(directory, exist_ok=True)
+        file_path = os.path.join(directory, suggested_filename_from_url(url))
 
-    # Determine extension from URL
-    parsed = urlparse(url)
-    ext = Path(parsed.path).suffix or ".musicxml"
-
-    filename = f"downloaded_{file_hash}{ext}"
-    file_path = os.path.join(temp_dir, filename)
+    os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
 
     with open(file_path, "wb") as f:
         f.write(content)
@@ -115,9 +138,10 @@ def download_from_url(url: str, temp_dir: str) -> tuple:
     return file_path, score
 
 
-def download_from_github(raw_url: str, temp_dir: str) -> tuple:
+def download_from_github(raw_url: str, save_path: str | None = None,
+                         temp_dir: str | None = None) -> tuple:
     """Download a music file from a GitHub raw URL. Returns (file_path, score)."""
-    return download_from_url(raw_url, temp_dir)
+    return download_from_url(raw_url, save_path=save_path, temp_dir=temp_dir)
 
 
 def parse_corpus(name: str):

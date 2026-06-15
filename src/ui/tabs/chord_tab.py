@@ -12,8 +12,7 @@ from src.core.chord_analyzer import extract_chords, format_as_markdown, format_a
 from src.core.score_analyzer import diagnose_all_parts, get_measure_range
 from src.ui.widgets.score_opener import setup_open_menu
 from src.utils.i18n import tr, tr_list
-from src.ui.theme import default_save_path
-from src.utils.config import show_score
+from src.utils.config import show_score, temp_default_path
 
 
 def _guess_hand(part) -> str:
@@ -233,7 +232,7 @@ class ChordTab(QWidget):
         if not self._results:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("chord.save_md"), default_save_path("chord_analysis.md"),
+            self, tr("chord.save_md"), temp_default_path("chord_analysis.md"),
             "Markdown (*.md);;All Files (*)"
         )
         if path:
@@ -246,7 +245,7 @@ class ChordTab(QWidget):
         if not self._results:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("chord.save_csv"), default_save_path("chord_analysis.csv"),
+            self, tr("chord.save_csv"), temp_default_path("chord_analysis.csv"),
             "CSV (*.csv);;All Files (*)"
         )
         if path:
@@ -285,7 +284,7 @@ class ChordTab(QWidget):
         if not self._score:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("chord.save_png"), default_save_path("chord_score.png"),
+            self, tr("chord.save_png"), temp_default_path("chord_score.png"),
             "PNG (*.png);;All Files (*)"
         )
         if not path:

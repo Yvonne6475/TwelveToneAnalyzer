@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 from pathlib import Path
 from PyQt5.QtCore import QSettings
 
@@ -52,14 +53,57 @@ def set_musescore_path(path: str):
     get_settings().setValue("musescore/path", path)
 
 
+def _is_writable_dir(path: str) -> bool:
+    """Return True if `path` exists (or can be created) and is writable."""
+    if not path:
+        return False
+    try:
+        os.makedirs(path, exist_ok=True)
+        fd, probe = tempfile.mkstemp(prefix="tta_probe_", dir=path)
+        os.close(fd)
+        os.remove(probe)
+        return True
+    except Exception:
+        return False
+
+
 def get_temp_dir() -> str:
     settings = get_settings()
     default = str(Path.home() / "MusicAnalysisTemp")
-    return settings.value("general/temp_dir", default, type=str)
+    configured = settings.value("general/temp_dir", default, type=str)
+    if _is_writable_dir(configured):
+        return configured
+
+    os.makedirs(default, exist_ok=True)
+    settings.setValue("general/temp_dir", default)
+    return default
 
 
 def set_temp_dir(path: str):
+    if not _is_writable_dir(path):
+        raise OSError(f"Temp directory is not writable: {path}")
     get_settings().setValue("general/temp_dir", path)
+
+
+def temp_default_path(filename: str) -> str:
+    """Return a default save path inside the user's configured temp directory."""
+    return os.path.join(get_temp_dir(), filename)
+
+
+def configure_music21_environment():
+    """Sync music21 scratch directory and MuseScore path with current config."""
+    try:
+        from music21 import environment
+        env = environment.Environment()
+        temp_dir = get_temp_dir()
+        env['directoryScratch'] = temp_dir
+
+        ms_path = get_musescore_path()
+        if ms_path and os.path.isfile(ms_path):
+            env['musicxmlPath'] = ms_path
+            env['musescoreDirectPNGPath'] = ms_path
+    except Exception:
+        pass
 
 
 def detect_musescore() -> tuple:

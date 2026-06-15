@@ -362,6 +362,9 @@ def export_annotated_score(score, score_path: str, output_dir: str,
     xml_path = os.path.join(output_dir, f"{base}.musicxml")
     pdf_path = os.path.join(output_dir, f"{base}.pdf")
 
+    from src.utils.config import configure_music21_environment
+    configure_music21_environment()
+
     excerpt.write('musicxml', xml_path)
     try:
         excerpt.write('musicxml.pdf', pdf_path)

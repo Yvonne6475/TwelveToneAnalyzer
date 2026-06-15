@@ -1,6 +1,10 @@
-## Twelve-Tone Music Analyzer v1.3.3
+## Twelve-Tone Music Analyzer v1.3.6
 
 ### 🐛 Fixes
+- **Fixed plot rendering errors**: forced matplotlib Qt5Agg backend before PyQt5 imports; all music21 plot() calls now use `doneAction=None` + `figure.show()` to avoid external viewer launch errors
+- **Fixed PDF export Permission denied**: temp directory now validates writability with fallback to `~/MusicAnalysisTemp`; `configure_music21_environment()` syncs music21 scratch dir before every PDF export
+- **URL downloads use original filenames**: replaced MD5 hash naming with `suggested_filename_from_url()`; download prompts save-as dialog before starting transfer
+- **All export dialogs default to temp directory**: instead of Desktop or empty string, exports now suggest the user's configured temp directory
 - **Fixed music21.serial import in frozen app**: `create_12tone_matrix` now uses deferred import to avoid `NameError` in PyInstaller builds
 - **macOS font fallback warnings eliminated**: uses Helvetica Neue on macOS instead of Segoe UI (70ms+ fallback overhead)
 - **Fixed missing `load_language` import** in language selection dialog

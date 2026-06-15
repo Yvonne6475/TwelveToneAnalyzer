@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from src.core.score_analyzer import get_measure_range
 from src.ui.widgets.score_opener import setup_open_menu
 from src.utils.i18n import tr, tr_list
-from src.ui.theme import default_save_path
+from src.utils.config import temp_default_path
 
 
 class VisualizationTab(QWidget):
@@ -142,29 +142,35 @@ class VisualizationTab(QWidget):
         from music21 import graph
 
         if plot_type == 0:
-            self._score.measures(start, end).plot()
+            p = self._score.measures(start, end).plot(doneAction=None)
+            p.figure.show()
         elif plot_type == 1:
-            self._score.measures(start, end).plot('histogram', 'pitchClass')
+            p = self._score.measures(start, end).plot('histogram', 'pitchClass', doneAction=None)
+            p.figure.show()
         elif plot_type == 2:
             p = graph.plot.ScatterWeightedPitchClassQuarterLength(
-                self._score.measures(start, end)
+                self._score.measures(start, end), doneAction=None
             )
             p.run()
+            p.figure.show()
         elif plot_type == 3:
-            self._score.measures(start, end).plot('scatter', 'measure', 'pitchClass')
+            p = self._score.measures(start, end).plot('scatter', 'measure', 'pitchClass', doneAction=None)
+            p.figure.show()
         elif plot_type == 4:
             src = self._midi_score if self._midi_score else self._score
-            src.measures(start, end).plot('horizontalbarweighted')
+            p = src.measures(start, end).plot('horizontalbarweighted', doneAction=None)
+            p.figure.show()
         elif plot_type == 5:
             src = self._midi_score if self._midi_score else self._score
-            plot_3d = src.measures(start, end).plot('3dbars', show=False)
+            plot_3d = src.measures(start, end).plot('3dbars', doneAction=None)
             plot_3d.figure.set_size_inches(16, 16)
             plt.tight_layout()
-            plt.show()
+            plot_3d.figure.show()
         elif plot_type == 6:
             from music21.graph.plot import WindowedKey
-            wk = WindowedKey(self._score.measures(start, end))
+            wk = WindowedKey(self._score.measures(start, end), doneAction=None)
             wk.run()
+            wk.figure.show()
 
     def _on_save_png(self):
         if self._current_fig is None:
@@ -176,7 +182,7 @@ class VisualizationTab(QWidget):
         }
         default_name = _plot_names.get(getattr(self, '_current_plot_idx', -1), "plot.png")
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("viz.save_png"), default_save_path(default_name),
+            self, tr("viz.save_png"), temp_default_path(default_name),
             "PNG (*.png);;All Files (*)"
         )
         if not path:
