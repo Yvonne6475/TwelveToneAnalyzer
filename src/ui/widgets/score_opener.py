@@ -3,6 +3,7 @@
 All heavy operations (I/O, download, corpus.parse) run on a QThread worker,
 keeping the UI responsive.
 """
+from __future__ import annotations
 
 from PyQt5.QtWidgets import (
     QMenu, QAction, QFileDialog, QMessageBox,

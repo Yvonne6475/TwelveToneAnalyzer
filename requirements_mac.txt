@@ -11,3 +11,4 @@ soundfile>=0.12
 numba>=0.57
 resampy>=0.4
 audioread>=3.0
+PyInstaller==5.13.2

@@ -1,5 +1,4 @@
 """Score analysis: voice diagnosis, pitch extraction, and measure utilities."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

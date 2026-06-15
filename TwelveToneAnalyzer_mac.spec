@@ -106,7 +106,9 @@ a = Analysis(
     runtime_hooks=['pyi_rth_music21.py'],
     excludes=[],
     noarchive=False,
-    optimize=0,
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=None,
 )
 
 pyz = PYZ(a.pure)
@@ -114,7 +116,8 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    [],
+    a.binaries,
+    a.datas,
     exclude_binaries=True,
     name='TwelveToneAnalyzer',
     debug=False,

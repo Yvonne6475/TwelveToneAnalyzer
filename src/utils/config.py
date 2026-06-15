@@ -1,5 +1,4 @@
 """Configuration management with QSettings persistence and MuseScore detection."""
-
 from __future__ import annotations
 
 import os

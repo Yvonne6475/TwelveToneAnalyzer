@@ -85,34 +85,35 @@ class TwelveToneTab(QWidget):
         layout.addWidget(forms_group)
 
         # ═══════════════════════════════════════════════════════════════
-        # Matrix area — wrapped in a QScrollArea for cross-platform
-        # overflow protection.  When the collapsible Row Grouping panel
-        # is expanded, or on small screens, the matrix scrolls vertically
-        # instead of being clipped.  Horizontal scrollbar appears only
-        # when needed (narrow window).
+        # Matrix area — wrapped in a QScrollArea with a fixed visible
+        # viewport height.  Vertical scrollbar appears when content
+        # exceeds the viewport (e.g. when Row Grouping panel is expanded,
+        # or on small screens).  Horizontal scrollbar appears only for
+        # narrow windows.  The fixed max-height ensures the matrix
+        # doesn't grow unbounded on tall screens.
         # ═══════════════════════════════════════════════════════════════
         self._matrix_scroll_container = QScrollArea()
         self._matrix_scroll_container.setWidgetResizable(True)
-        self._matrix_scroll_container.setMinimumHeight(300)
-        # Horizontal: always show full content, no wrapping
+        self._matrix_scroll_container.setMinimumHeight(280)
+        self._matrix_scroll_container.setMaximumHeight(520)
         self._matrix_scroll_container.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
         matrix_group = QGroupBox(tr("tt.matrix_group"))
         matrix_layout = QVBoxLayout(matrix_group)
 
-        # Heatmap (kept compact — shows on click)
+        # Heatmap — compact, scrolls independently if needed
         self._matrix_widget = MatrixWidget(self)
         self._matrix_scroll = QScrollArea()
         self._matrix_scroll.setWidgetResizable(False)
         self._matrix_scroll.setWidget(self._matrix_widget)
-        self._matrix_scroll.setMinimumHeight(400)
+        self._matrix_scroll.setMinimumHeight(300)
         matrix_layout.addWidget(self._matrix_scroll, 1)
 
-        # Numeric matrix (flexible height, no hard max to avoid clipping)
+        # Numeric matrix — no horizontal wrapping (each row stays on one line)
         self._matrix_numeric = QTextEdit()
         self._matrix_numeric.setReadOnly(True)
-        self._matrix_numeric.setMinimumHeight(200)
-        # No setMaximumHeight — let the scroll area handle overflow naturally
+        self._matrix_numeric.setMinimumHeight(150)
+        self._matrix_numeric.setLineWrapMode(QTextEdit.NoWrap)
         self._matrix_numeric.setStyleSheet(matrix_text_stylesheet(19))
         matrix_layout.addWidget(self._matrix_numeric)
 
