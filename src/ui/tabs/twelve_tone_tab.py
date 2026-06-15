@@ -132,7 +132,7 @@ class TwelveToneTab(QWidget):
         matrix_scroll.setWidget(self._matrix_numeric)
         matrix_layout.addWidget(matrix_scroll)
 
-        layout.addWidget(matrix_group, 4)
+        layout.addWidget(matrix_group, 5)
 
         # ═══════════════════════════════════════════════════════════════
         # Row Grouping — reusable CollapsiblePanel (cross-platform)
