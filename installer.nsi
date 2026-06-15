@@ -1,4 +1,4 @@
-Unicode true
+﻿Unicode true
 ; ============================================================================
 ; Twelve-Tone Music Analyzer - NSIS Installer (optimized v2)
 ;
@@ -86,24 +86,13 @@ Function .onInit
 FunctionEnd
 
 ; (4) Install Section with Qt dev-tool + junk exclusions
+; Both modes use File /r directly - single extraction pass, no double-zip overhead.
 Section "Install"
   CreateDirectory "$INSTDIR"
   SetOutPath "$INSTDIR"
 
-  !ifdef RELEASE
-    DetailPrint "Extracting application files..."
-    File /oname=$INSTDIR\${ZIP_NAME} "dist\${ZIP_NAME}"
-    nsExec::ExecToLog 'powershell -NoProfile -Command "Expand-Archive -Path \"$INSTDIR\${ZIP_NAME}\" -DestinationPath \"$INSTDIR\" -Force"'
-    Pop $0
-    ${If} $0 != 0
-      MessageBox MB_ICONSTOP "Extraction failed (code $0).$\nPlease try reinstalling or contact support."
-      Abort
-    ${EndIf}
-    Delete "$INSTDIR\${ZIP_NAME}"
-  !else
-    ; Debug mode: File /r with aggressive exclusions
-    File /r /x "__pycache__" /x "*.pyc" /x ".git" /x "*.lib" /x "*.pdb" /x "*.ilk" /x "*.exp" /x "Qt5Designer*" /x "Qt5Help*" /x "Qt5Test*" /x "Qt5DBus*" /x "Qt5Bluetooth*" /x "Qt5Nfc*" /x "Qt5Sql*" /x "Qt5SerialPort*" /x "Qt5Sensors*" /x "Qt5Location*" /x "Qt5Positioning*" /x "Qt5RemoteObjects*" /x "Qt5WebChannel*" /x "Qt5WebSockets*" /x "Qt5WebView*" /x "Qt5XmlPatterns*" /x "Qt5TextToSpeech*" /x "Qt5WinExtras*" /x "Qt5Quick3D*" /x "Qt5QuickTest*" /x "Qt5Multimedia*" "dist\TwelveToneAnalyzer\*.*"
-  !endif
+  DetailPrint "Extracting application files..."
+  File /r /x "__pycache__" /x "*.pyc" /x ".git" /x "*.lib" /x "*.pdb" /x "*.ilk" /x "*.exp" /x "Qt5Designer*" /x "Qt5Help*" /x "Qt5Test*" /x "Qt5DBus*" /x "Qt5Bluetooth*" /x "Qt5Nfc*" /x "Qt5Sql*" /x "Qt5SerialPort*" /x "Qt5Sensors*" /x "Qt5Location*" /x "Qt5Positioning*" /x "Qt5RemoteObjects*" /x "Qt5WebChannel*" /x "Qt5WebSockets*" /x "Qt5WebView*" /x "Qt5XmlPatterns*" /x "Qt5TextToSpeech*" /x "Qt5WinExtras*" /x "Qt5Quick3D*" /x "Qt5QuickTest*" /x "Qt5Multimedia*" "dist\TwelveToneAnalyzer\*.*"
 
   ; Start menu shortcuts
   CreateDirectory "$SMPROGRAMS\${PRODUCT}"
