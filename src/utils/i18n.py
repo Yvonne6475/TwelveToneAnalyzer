@@ -349,6 +349,7 @@ TRANSLATIONS = {
     "lattice.edge_hint": {"zh": "提示：只有连线连接的两个集合之间存在包含关系（子集 / 超集）", "en": "Hint: only connected nodes have an inclusion relationship (subset / superset)"},
     "lattice.no_chord_msg": {"zh": "请先在'和弦分析'选项卡中提取和弦。", "en": "Please extract chords in the 'Chord Analysis' tab first."},
     "lattice.not_enough_sets": {"zh": "当前大小范围内至少需要 2 个集合才能构建关系格。", "en": "Need at least 2 sets in the current size range to build a relations lattice."},
+    "lattice.not_enough_sets_with_dropped": {"zh": "大小范围 [{min_sz}–{max_sz}] 内仅有 {kept} 个集合可用（{dropped} 个被过滤），\n至少需要 2 个。请调整 Min/Max Size。", "en": "Only {kept} sets within range [{min_sz}–{max_sz}] ({dropped} filtered out).\nNeed at least 2. Please adjust Min/Max Size."},
     "lattice.select_chord": {"zh": "选择音级集合:", "en": "Select a pitch-class set:"},
     "lattice.collections_group": {"zh": "批量集合分析", "en": "Batch Collections"},
     "lattice.collections_placeholder": {"zh": "每行一组音级，空格分隔:\n0 2 4 7 9\n6 8 11 1 4\n...", "en": "One pc-set per line, space-separated:\n0 2 4 7 9\n6 8 11 1 4\n..."},

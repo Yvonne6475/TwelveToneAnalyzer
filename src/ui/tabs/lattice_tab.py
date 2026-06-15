@@ -179,25 +179,29 @@ class LatticeTab(QWidget):
             return
 
         G, levels = build_inclusion_graph(subsets)
-        pos = compute_layout(levels)
+
+        # Scale spacing & node size by max pitch-class count so that
+        # nodes with long labels (e.g. "024791011\n7-35") don't overlap.
+        max_pc_len = max((len(n) for n in G.nodes()), default=3)
+        x_gap = 1.0 + max_pc_len * 0.45
+        y_gap = 0.6 + max_pc_len * 0.25
+        pos = compute_layout(levels, x_gap=x_gap, y_gap=y_gap)
         labels = build_labels(G)
 
         self._current_fig_data = (G, pos, labels, pc_set, min_size, max_size)
 
-        # Dynamic figure size — keep it compact so nodes don't spread too far
         num_levels = len(levels)
         max_nodes = max((len(v) for v in levels.values()), default=1)
         node_count = len(G.nodes())
-        w = min(22, max(8, 4 + max_nodes * 1.8))
-        h = min(16, max(6, 2 + num_levels * 1.3))
+        w = min(28, max(8, 4 + max_nodes * x_gap * 0.85))
+        h = min(22, max(6, 2 + num_levels * y_gap * 1.1))
 
         self._canvas.clear()
         self._canvas.set_size_inches(w, h)
         ax = self._canvas.fig.add_subplot(111)
 
-        # Node/font size keep readable even for large graphs
-        n_size = max(2000, 5000 - node_count * 80)
-        f_size = max(8, 14 - node_count * 0.2)
+        n_size = max(2500, 1000 + max_pc_len * 550 - node_count * 50)
+        f_size = max(7, 13 - max(0, max_pc_len - 3) * 1.2)
 
         # ── Draw edges with color per source (parent) node ──
         # Sort sources by layout position (level desc, then x) so that
@@ -381,27 +385,36 @@ class LatticeTab(QWidget):
         # filter chord entries to specified size range
         filtered = [tuple(sorted(s)) for s in self._chord_entries
                     if min_sz <= len(s) <= max_sz]
+        dropped = len(self._chord_entries) - len(filtered)
         if len(filtered) < 2:
             QMessageBox.warning(self, tr("lattice.input_error"),
-                                tr("lattice.not_enough_sets"))
+                                tr("lattice.not_enough_sets_with_dropped",
+                                   kept=len(filtered), dropped=dropped,
+                                   min_sz=min_sz, max_sz=max_sz))
             return
 
         G, levels = build_inclusion_graph(filtered)
-        pos = compute_layout(levels)
+
+        # Scale spacing & node size by max pitch-class count so that
+        # nodes with long labels (e.g. "024791011\n7-35") don't overlap.
+        max_pc_len = max((len(n) for n in G.nodes()), default=3)
+        x_gap = 1.0 + max_pc_len * 0.45
+        y_gap = 0.6 + max_pc_len * 0.25
+        pos = compute_layout(levels, x_gap=x_gap, y_gap=y_gap)
         labels = build_labels(G)
 
         num_levels = len(levels)
         max_nodes = max((len(v) for v in levels.values()), default=1)
         node_count = len(G.nodes())
-        w = max(6, 4 + max_nodes * 2.8)
-        h = max(4, 2 + num_levels * 2.0)
+        w = max(6, 4 + max_nodes * x_gap * 0.85)
+        h = max(4, 2 + num_levels * y_gap * 1.1)
 
         self._canvas.clear()
         self._canvas.set_size_inches(w, h)
         ax = self._canvas.fig.add_subplot(111)
 
-        n_size = max(2000, 5000 - node_count * 80)
-        f_size = max(8, 14 - node_count * 0.2)
+        n_size = max(2500, 1000 + max_pc_len * 550 - node_count * 50)
+        f_size = max(7, 13 - max(0, max_pc_len - 3) * 1.2)
 
         # ── Draw edges with color per source (parent) node ──
         # Sort sources by layout position (level desc, then x) so that
