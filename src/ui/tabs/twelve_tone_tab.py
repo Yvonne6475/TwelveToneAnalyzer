@@ -235,6 +235,15 @@ class TwelveToneTab(QWidget):
 
     def on_score_loaded(self, score, path: str):
         self._score = score
+        # Clear previous analysis results
+        self._row = []
+        self._last_groups = []
+        self._extracted_label.setText("")
+        self._manual_input.clear()
+        self._forms_text.clear()
+        self._matrix_widget.setVisible(False)
+        self._matrix_numeric.clear()
+        # Repopulate part combo
         self._part_combo.clear()
         self._part_combo.addItem(tr("viz.all_parts"), -1)
         diagnostics = diagnose_all_parts(score)

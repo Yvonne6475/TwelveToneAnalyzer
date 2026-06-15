@@ -155,7 +155,9 @@ class LatticeTab(QWidget):
 
     def on_score_loaded(self, score=None, path=None):
         mw = self._main_window
-        # Clear old chord-derived data — user must re-click "Get from Chord"
+        # Clear old data and inputs
+        self._input_edit.clear()
+        self._collections_edit.clear()
         self._chord_entries = []
         self._chord_combo.clear()
         self._chord_combo.setEnabled(False)
