@@ -82,14 +82,14 @@ class TwelveToneTab(QWidget):
         self._forms_text.setReadOnly(True)
         self._forms_text.setMinimumHeight(180)
         # Monospace font for forms
-        self._forms_font = QFont(self._matrix_font_family if hasattr(self, '_matrix_font_family') else 'Consolas')
+        self._forms_font = QFont('Consolas')
+        self._forms_font.setPointSize(18)
         self._forms_font.setStyleHint(QFont.Monospace)
         self._forms_text.setFont(self._forms_font)
         self._forms_text.document().setDefaultFont(self._forms_font)
         self._forms_text.setStyleSheet(
             "QTextEdit { background-color: #fefdfb; color: #2c2c2c; }"
         )
-        self._forms_text.installEventFilter(self)
         forms_layout.addWidget(self._forms_text)
         layout.addWidget(forms_group)
 
@@ -211,18 +211,6 @@ class TwelveToneTab(QWidget):
         export_row.addWidget(self._btn_export_heatmap)
 
         layout.addLayout(export_row)
-
-    # ── Dynamic font sizing for matrix ─────────────────────────
-    def eventFilter(self, obj, event):
-        from PyQt5.QtCore import QEvent
-        if event.type() == QEvent.Resize and obj is self._forms_text:
-            w = self._forms_text.viewport().width()
-            pt = max(12, min(28, int(w / 28)))
-            if self._forms_font.pointSize() != pt:
-                self._forms_font.setPointSize(pt)
-                self._forms_text.setFont(self._forms_font)
-                self._forms_text.document().setDefaultFont(self._forms_font)
-        return super().eventFilter(obj, event)
 
     # ── Collapsible panel toggle ────────────────────────────────
     def _on_panel_toggled(self, visible: bool):
