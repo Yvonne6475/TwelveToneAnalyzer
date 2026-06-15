@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import networkx as nx
 from music21 import chord
 
@@ -51,16 +52,18 @@ class LatticeTab(QWidget):
 
         ctrl_layout.addWidget(QLabel(tr("lattice.min_size")))
         self._spin_min = QSpinBox()
-        self._spin_min.setMinimum(2)
-        self._spin_min.setMaximum(5)
+        self._spin_min.setMinimum(1)
+        self._spin_min.setMaximum(11)
         self._spin_min.setValue(3)
+        self._spin_min.setToolTip(tr("lattice.range_hint"))
         ctrl_layout.addWidget(self._spin_min)
 
         ctrl_layout.addWidget(QLabel(tr("lattice.max_size")))
         self._spin_max = QSpinBox()
-        self._spin_max.setMinimum(3)
-        self._spin_max.setMaximum(8)
+        self._spin_max.setMinimum(1)
+        self._spin_max.setMaximum(11)
         self._spin_max.setValue(6)
+        self._spin_max.setToolTip(tr("lattice.range_hint"))
         ctrl_layout.addWidget(self._spin_max)
 
         ctrl_layout.addStretch()
@@ -116,12 +119,28 @@ class LatticeTab(QWidget):
         self._chord_combo.currentIndexChanged.connect(self._on_chord_combo_changed)
         quick_row.addWidget(self._chord_combo, 1)
 
+        self._btn_chord_relations = QPushButton(tr("lattice.btn_chord_relations"))
+        self._btn_chord_relations.setProperty("accent", "teal")
+        self._btn_chord_relations.setEnabled(False)
+        self._btn_chord_relations.setToolTip(tr("lattice.btn_chord_relations_hint"))
+        self._btn_chord_relations.clicked.connect(self._on_chord_relations)
+        quick_row.addWidget(self._btn_chord_relations)
+
         self._btn_save = QPushButton(tr("lattice.btn_save"))
         self._btn_save.setEnabled(False)
         self._btn_save.clicked.connect(self._on_save)
         quick_row.addWidget(self._btn_save)
         quick_row.addStretch()
         layout.addLayout(quick_row)
+
+        self._lbl_edge_hint = QLabel(tr("lattice.edge_hint"))
+        self._lbl_edge_hint.setStyleSheet(
+            "color: #856404; background-color: #fff3cd; "
+            "border: 1px solid #ffc107; border-radius: 3px; "
+            "padding: 4px 8px; font-size: 12px;"
+        )
+        self._lbl_edge_hint.setVisible(False)
+        layout.addWidget(self._lbl_edge_hint)
 
     def on_score_loaded(self, score=None, path=None):
         mw = self._main_window
@@ -146,6 +165,9 @@ class LatticeTab(QWidget):
         if max_sz < min_sz:
             QMessageBox.warning(self, tr("lattice.input_error"), tr("lattice.size_error"))
             return
+        if max_sz - min_sz > 4:
+            QMessageBox.warning(self, tr("lattice.input_error"), tr("lattice.range_warn"))
+            # proceed anyway — user has been warned
 
         self._draw_lattice(pc_set, min_sz, max_sz)
 
@@ -162,29 +184,66 @@ class LatticeTab(QWidget):
 
         self._current_fig_data = (G, pos, labels, pc_set, min_size, max_size)
 
-        # Dynamic figure size based on graph complexity
+        # Dynamic figure size — keep it compact so nodes don't spread too far
         num_levels = len(levels)
         max_nodes = max((len(v) for v in levels.values()), default=1)
         node_count = len(G.nodes())
-        w = max(6, min(28, 4 + max_nodes * 2.2))
-        h = max(4, min(24, 2 + num_levels * 1.6))
+        w = min(22, max(8, 4 + max_nodes * 1.8))
+        h = min(16, max(6, 2 + num_levels * 1.3))
 
         self._canvas.clear()
         self._canvas.set_size_inches(w, h)
         ax = self._canvas.fig.add_subplot(111)
 
-        # Adjust node/font size based on complexity
-        n_size = max(1500, min(6000, 8000 - node_count * 120))
-        f_size = max(6, min(14, 16 - node_count * 0.3))
+        # Node/font size keep readable even for large graphs
+        n_size = max(2000, 5000 - node_count * 80)
+        f_size = max(8, 14 - node_count * 0.2)
 
-        nx.draw(G, pos, ax=ax,
-                labels=labels,
-                node_color="white",
-                edgecolors="black",
-                linewidths=2,
-                node_size=n_size,
-                font_size=f_size,
-                font_weight="bold")
+        # ── Draw edges with color per source (parent) node ──
+        # Sort sources by layout position (level desc, then x) so that
+        # spatially adjacent parent nodes get maximally distinct colors
+        # via golden-ratio stepping through the colormap.
+        sources = [n for n in G.nodes() if G.out_degree(n) > 0]
+        if sources:
+            sorted_sources = sorted(sources, key=lambda n: (-pos[n][1], pos[n][0]))
+            n_palette = 20
+            step = 7  # coprime with 20 → adjacent indices ~7 steps apart
+            color_indices = [(i * step) % n_palette for i in range(len(sorted_sources))]
+            source_colors = cm.tab20(color_indices)
+            color_map = dict(zip(sorted_sources, source_colors))
+        else:
+            color_map = {}
+
+        for src in sources:
+            edges = list(G.out_edges(src))
+            if edges:
+                nx.draw_networkx_edges(G, pos, ax=ax,
+                                       edgelist=edges,
+                                       edge_color=[color_map[src]] * len(edges),
+                                       arrows=True, arrowsize=12, width=2.0,
+                                       connectionstyle='arc3,rad=0.0')
+
+        # Draw any remaining edges (e.g. symmetric, shouldn't appear here but safe)
+        drawn_edges = set()
+        for src in sources:
+            for e in G.out_edges(src):
+                drawn_edges.add(e)
+        remaining = [e for e in G.edges() if e not in drawn_edges]
+        if remaining:
+            nx.draw_networkx_edges(G, pos, ax=ax, edgelist=remaining,
+                                   edge_color="gray", arrows=True, arrowsize=12, width=2.0,
+                                   connectionstyle='arc3,rad=0.0')
+
+        # ── Draw nodes & labels ──
+        nx.draw_networkx_nodes(G, pos, ax=ax,
+                               node_color="white",
+                               edgecolors="black",
+                               linewidths=2,
+                               node_size=n_size)
+        nx.draw_networkx_labels(G, pos, ax=ax,
+                                labels=labels,
+                                font_size=f_size,
+                                font_weight="bold")
 
         title = f"Inclusion Lattice ({min_size}-{max_size} tones) | "
         title += ", ".join(map(str, sorted(set(pc_set))))
@@ -193,6 +252,7 @@ class LatticeTab(QWidget):
         self._canvas.fig.tight_layout()
         self._canvas.draw()
         self._btn_save.setEnabled(True)
+        self._lbl_edge_hint.setVisible(False)
 
     def _on_from_row(self):
         """Try to get a 12-tone row from the twelve-tone tab."""
@@ -259,6 +319,7 @@ class LatticeTab(QWidget):
                                for i in range(self._chord_combo.count())), default=0)
         self._chord_combo.view().setMinimumWidth(max_label_width + 40)
         self._chord_combo.setEnabled(True)
+        self._btn_chord_relations.setEnabled(True)
         if self._chord_entries:
             self._chord_combo.setCurrentIndex(0)
 
@@ -298,6 +359,7 @@ class LatticeTab(QWidget):
                                    for i in range(self._chord_combo.count())), default=0)
             self._chord_combo.view().setMinimumWidth(max_label_width + 40)
             self._chord_combo.setEnabled(True)
+            self._btn_chord_relations.setEnabled(True)
             self._chord_combo.setCurrentIndex(0)
 
     def _on_chord_combo_changed(self, idx: int):
@@ -305,7 +367,96 @@ class LatticeTab(QWidget):
             return
         pc_set = self._chord_entries[idx]
         self._input_edit.setText(" ".join(map(str, pc_set)))
-        self._draw_lattice(pc_set, self._spin_min.value(), self._spin_max.value())
+
+    def _on_chord_relations(self):
+        """Build an inclusion lattice from the chord analysis sets themselves."""
+        if not self._chord_entries:
+            QMessageBox.information(self, tr("lattice.from_row_title"),
+                                    tr("lattice.no_chord_msg"))
+            return
+
+        min_sz = self._spin_min.value()
+        max_sz = self._spin_max.value()
+
+        # filter chord entries to specified size range
+        filtered = [tuple(sorted(s)) for s in self._chord_entries
+                    if min_sz <= len(s) <= max_sz]
+        if len(filtered) < 2:
+            QMessageBox.warning(self, tr("lattice.input_error"),
+                                tr("lattice.not_enough_sets"))
+            return
+
+        G, levels = build_inclusion_graph(filtered)
+        pos = compute_layout(levels)
+        labels = build_labels(G)
+
+        num_levels = len(levels)
+        max_nodes = max((len(v) for v in levels.values()), default=1)
+        node_count = len(G.nodes())
+        w = max(6, 4 + max_nodes * 2.8)
+        h = max(4, 2 + num_levels * 2.0)
+
+        self._canvas.clear()
+        self._canvas.set_size_inches(w, h)
+        ax = self._canvas.fig.add_subplot(111)
+
+        n_size = max(2000, 5000 - node_count * 80)
+        f_size = max(8, 14 - node_count * 0.2)
+
+        # ── Draw edges with color per source (parent) node ──
+        # Sort sources by layout position (level desc, then x) so that
+        # spatially adjacent parent nodes get maximally distinct colors
+        # via golden-ratio stepping through the colormap.
+        sources = [n for n in G.nodes() if G.out_degree(n) > 0]
+        if sources:
+            sorted_sources = sorted(sources, key=lambda n: (-pos[n][1], pos[n][0]))
+            n_palette = 20
+            step = 7  # coprime with 20 → adjacent indices ~7 steps apart
+            color_indices = [(i * step) % n_palette for i in range(len(sorted_sources))]
+            source_colors = cm.tab20(color_indices)
+            color_map = dict(zip(sorted_sources, source_colors))
+        else:
+            color_map = {}
+
+        for src in sources:
+            edges = list(G.out_edges(src))
+            if edges:
+                nx.draw_networkx_edges(G, pos, ax=ax,
+                                       edgelist=edges,
+                                       edge_color=[color_map[src]] * len(edges),
+                                       arrows=True, arrowsize=12, width=2.0,
+                                       connectionstyle='arc3,rad=0.0')
+
+        # Draw any remaining edges (shouldn't appear here but safe)
+        drawn_edges = set()
+        for src in sources:
+            for e in G.out_edges(src):
+                drawn_edges.add(e)
+        remaining = [e for e in G.edges() if e not in drawn_edges]
+        if remaining:
+            nx.draw_networkx_edges(G, pos, ax=ax, edgelist=remaining,
+                                   edge_color="gray", arrows=True, arrowsize=12, width=2.0,
+                                   connectionstyle='arc3,rad=0.0')
+
+        # ── Draw nodes & labels ──
+        nx.draw_networkx_nodes(G, pos, ax=ax,
+                               node_color="white",
+                               edgecolors="black",
+                               linewidths=2,
+                               node_size=n_size)
+        nx.draw_networkx_labels(G, pos, ax=ax,
+                                labels=labels,
+                                font_size=f_size,
+                                font_weight="bold")
+
+        title = (f"Chord Relations Lattice ({min_sz}-{max_sz} tones) | "
+                 f"{node_count} sets, {len(G.edges())} relations")
+        ax.set_title(title, fontsize=14)
+        ax.axis("off")
+        self._canvas.fig.tight_layout()
+        self._canvas.draw()
+        self._btn_save.setEnabled(True)
+        self._lbl_edge_hint.setVisible(True)
 
     def _on_save(self):
         if self._canvas is None or self._canvas.fig is None:

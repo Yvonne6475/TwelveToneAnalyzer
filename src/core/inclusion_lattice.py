@@ -54,7 +54,7 @@ def build_inclusion_graph(subsets: list[tuple]):
     return G, levels
 
 
-def compute_layout(levels: dict, y_gap: float = 1.8, x_gap: float = 3.5) -> dict:
+def compute_layout(levels: dict, y_gap: float = 1.3, x_gap: float = 2.2) -> dict:
     """Compute a layered layout for the inclusion lattice graph."""
     pos = {}
     y = 0

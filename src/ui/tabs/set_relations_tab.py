@@ -23,8 +23,24 @@ def _pc_str(pcs) -> str:
     return " ".join(map(str, pcs))
 
 
+def _pc_bracket(pcs) -> str:
+    return "[" + ", ".join(map(str, pcs)) + "]"
+
+
 def _forte(pcs) -> str:
     return chord.Chord(pcs).forteClass
+
+
+def _compute_forms(normal):
+    """Compute P, I, R, RI from normal-order pitch-class list."""
+    if not normal:
+        return [], [], [], []
+    first = normal[0]
+    p_form = list(normal)
+    i_form = [(2 * first - p) % 12 for p in p_form]
+    r_form = list(reversed(p_form))
+    ri_form = list(reversed(i_form))
+    return p_form, i_form, r_form, ri_form
 
 
 class _AnalysisWorker(QObject):
@@ -366,21 +382,21 @@ class SetRelationsTab(QWidget):
         comp = cpx["complement"]
         iv = cpx["interval_vector"]
 
-        # Precompute all Forte names to avoid redundant chord.Chord() calls
+        # Precompute all Forte names and IVs to avoid redundant chord.Chord() calls
         all_sets = [target, comp] + cpx["subsets"] + cpx["supersets"] + \
                    cpx["z_related"] + cpx["k_related"] + cpx["invariants"]
         forte_cache = {}
+        iv_cache_all = {}
         for s in all_sets:
             t = tuple(sorted(s))
             if t not in forte_cache:
                 forte_cache[t] = _forte(s)
-        iv_lookup = {}
-        for s in cpx["z_related"]:
-            t = tuple(sorted(s))
-            iv_lookup[t] = str(interval_vector(s))
+                iv_cache_all[t] = str(interval_vector(s))
 
         def _fmt(s):
-            return tr("sr.rel_item", pc=_pc_str(s), forte=forte_cache[tuple(sorted(s))])
+            t = tuple(sorted(s))
+            return tr("sr.rel_item", pc=_pc_str(s),
+                      forte=forte_cache[t], iv=iv_cache_all[t])
 
         # Basic info
         info_group = QGroupBox(tr("sr.info_group"))
@@ -391,6 +407,14 @@ class SetRelationsTab(QWidget):
         info_layout.addWidget(QLabel(
             tr("sr.info_complement", pc=_pc_str(comp),
                forte=forte_cache[tuple(sorted(comp))])))
+
+        # intervals of target (consecutive in normal order)
+        normal = list(chord.Chord(target).normalOrder)
+        intervals = [normal[i+1] - normal[i] for i in range(len(normal) - 1)] if len(normal) >= 2 else []
+        info_layout.addWidget(QLabel(
+            tr("sr.info_intervals", pc=_pc_str(normal),
+               intervals=" ".join(map(str, intervals)))))
+
         if nexus_info:
             info_layout.addWidget(QLabel(
                 tr("sr.info_nexus", pc=_pc_str(nexus_info["nexus"]),
@@ -408,9 +432,7 @@ class SetRelationsTab(QWidget):
 
         self._add_section(
             tr("sr.z_related", n=len(cpx["z_related"])),
-            [tr("sr.rel_z", pc=_pc_str(s), forte=forte_cache[tuple(sorted(s))],
-                iv=iv_lookup[tuple(sorted(s))])
-             for s in cpx["z_related"]])
+            [_fmt(s) for s in cpx["z_related"]])
 
         self._add_section(
             tr("sr.k_related", n=len(cpx["k_related"])),
@@ -420,4 +442,44 @@ class SetRelationsTab(QWidget):
             tr("sr.invariants", n=len(cpx["invariants"])),
             [_fmt(s) for s in cpx["invariants"]])
 
+        # ── P / I / R / RI transformational matches ──
+        self._add_transformation_section(cpx)
+
         self._results_layout.addStretch()
+
+    def _add_transformation_section(self, cpx):
+        """Search the universe for sets matching P, I, R, RI forms of the target."""
+        target = cpx["target"]
+        normal = list(chord.Chord(target).normalOrder)
+        p_form, i_form, r_form, ri_form = _compute_forms(normal)
+
+        # search universe for exact ordered matches
+        p_matches, i_matches, r_matches, ri_matches = [], [], [], []
+        for s in self._universe:
+            if s == p_form:
+                p_matches.append(s)
+            if s == i_form:
+                i_matches.append(s)
+            if s == r_form:
+                r_matches.append(s)
+            if s == ri_form:
+                ri_matches.append(s)
+
+        group = QGroupBox(tr("sr.trans_group"))
+        gl = QVBoxLayout(group)
+
+        for label, matches, form in [
+            ("P", p_matches, p_form),
+            ("I", i_matches, i_form),
+            ("R", r_matches, r_form),
+            ("RI", ri_matches, ri_form),
+        ]:
+            if matches:
+                gl.addWidget(QLabel(
+                    tr("sr.trans_found", label=label, form=_pc_bracket(form),
+                       n=len(matches))))
+            else:
+                gl.addWidget(QLabel(
+                    tr("sr.trans_none", label=label, form=_pc_bracket(form))))
+
+        self._results_layout.addWidget(group)

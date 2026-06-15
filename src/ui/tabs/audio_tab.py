@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
     QComboBox, QSpinBox, QPushButton, QFileDialog, QMessageBox,
     QScrollArea, QMenu, QAction, QDialog, QLineEdit, QDialogButtonBox,
-    QApplication,
+    QApplication, QProgressBar,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject
 
@@ -22,6 +22,90 @@ from src.core.audio_analyzer import (
 )
 from src.utils.i18n import tr, tr_list
 from src.ui.theme import default_save_path
+
+
+class _AudioLoadWorker(QObject):
+    """Background worker: loads audio with chunked reading for real progress."""
+    finished = pyqtSignal(object, int)  # (y, sr)
+    progress = pyqtSignal(int)          # 0–100
+    error = pyqtSignal(str)
+
+    def do_load(self, path):
+        import soundfile as sf
+        import numpy as np
+        try:
+            info = sf.info(path)
+            total_frames = info.frames
+            sr = info.samplerate
+            chunk_size = max(4096, total_frames // 200)  # ~200 updates
+            y_parts = []
+            frames_read = 0
+            with sf.SoundFile(path) as f:
+                while frames_read < total_frames:
+                    chunk = f.read(chunk_size, dtype='float32', always_2d=False)
+                    if len(chunk) == 0:
+                        break
+                    y_parts.append(chunk)
+                    frames_read += len(chunk)
+                    pct = int(frames_read / total_frames * 100)
+                    self.progress.emit(pct)
+            y = np.concatenate(y_parts)
+            # convert stereo → mono
+            if y.ndim == 2:
+                y = y.mean(axis=1)
+            self.finished.emit(y, sr)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class _AnalysisWorker(QObject):
+    """Background worker: computes audio features without blocking UI."""
+    finished = pyqtSignal(object)  # result dict
+    error = pyqtSignal(str)
+
+    def do_analyze(self, y, sr, choice, n_seg):
+        import numpy as np
+        try:
+            result = {"choice": choice, "n_seg": n_seg}
+            if choice == 0:  # waveform – nothing heavy to compute
+                total = len(y) / sr
+                result["seg_times"] = np.linspace(0, total, n_seg + 1)
+            elif choice == 1:  # spectrogram
+                D = compute_spectrogram(y, sr)
+                result["D"] = D
+                result["vmin"] = float(D.min())
+                result["vmax"] = float(D.max())
+                bounds = np.linspace(0, D.shape[1], n_seg + 1).astype(int)
+                result["bounds"] = bounds
+                result["bound_times"] = (bounds * 1024 / sr).tolist()
+                result["hop_length"] = 1024
+            elif choice == 2:  # chromagram
+                chroma = compute_chromagram(y, sr)
+                bounds = segment_structure(chroma, n_seg, axis=1)
+                result["chroma"] = chroma
+                result["bounds"] = bounds
+                result["bound_times"] = frames_to_time(bounds, sr).tolist()
+            elif choice == 3:  # MFCC
+                mfccs = compute_mfcc(y, sr)
+                bounds = segment_structure(mfccs, n_seg, axis=1)
+                result["mfccs"] = mfccs
+                result["bounds"] = bounds
+                result["bound_times"] = frames_to_time(bounds, sr, hop_length=256).tolist()
+            elif choice == 4:  # tonnetz
+                tonnetz = compute_tonnetz(y, sr)
+                bounds = segment_structure(tonnetz, n_seg, axis=1)
+                result["tonnetz"] = tonnetz
+                result["bounds"] = bounds
+                result["bound_times"] = frames_to_time(bounds, sr).tolist()
+            elif choice == 5:  # tempogram
+                tempo = compute_tempogram(y, sr)
+                bounds = segment_structure(tempo, n_seg, axis=1)
+                result["tempo"] = tempo
+                result["bounds"] = bounds
+                result["bound_times"] = frames_to_time(bounds, sr, hop_length=1024).tolist()
+            self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class AudioTab(QWidget):
@@ -76,6 +160,19 @@ class AudioTab(QWidget):
 
         layout.addWidget(ctrl_group)
 
+        self._progress = QProgressBar()
+        self._progress.setMinimum(0)
+        self._progress.setMaximum(0)  # indeterminate / marquee mode
+        self._progress.setVisible(False)
+        self._progress.setMaximumHeight(20)
+        self._progress.setFormat("  %p%")
+        self._progress.setStyleSheet(
+            "QProgressBar { border: 2px solid #7b68ee; border-radius: 4px; "
+            "background: #f0f0f0; text-align: center; font-weight: bold; }"
+            "QProgressBar::chunk { background-color: #7b68ee; }"
+        )
+        layout.addWidget(self._progress)
+
         btn_row = QHBoxLayout()
         self._btn_save_plot = QPushButton(tr("audio.btn_save_plot"))
         self._btn_save_plot.setEnabled(False)
@@ -91,18 +188,64 @@ class AudioTab(QWidget):
         self._scroll_area.setStyleSheet("QScrollArea { background-color: #fefdfb; border: none; }")
         layout.addWidget(self._scroll_area, 1)
 
+    def _show_progress(self, determinate=True):
+        self._progress.setVisible(True)
+        if determinate:
+            self._progress.setMinimum(0)
+            self._progress.setMaximum(100)
+            self._progress.setValue(0)
+        else:
+            self._progress.setMinimum(0)
+            self._progress.setMaximum(0)  # indeterminate
+        self._btn_analyze.setEnabled(False)
+        self._btn_load.setEnabled(False)
+        self._analysis_combo.setEnabled(False)
+        self._spin_segments.setEnabled(False)
+        QApplication.processEvents()
+
+    def _hide_progress(self):
+        self._progress.setVisible(False)
+        self._btn_load.setEnabled(True)
+        self._analysis_combo.setEnabled(True)
+        self._spin_segments.setEnabled(True)
+        if self._y is not None:
+            self._btn_analyze.setEnabled(True)
+
     def on_audio_loaded(self, path: str):
         self._audio_path = path
-        self._lbl_file.setText(tr("audio.no_file"))
-        try:
-            self._y, self._sr = load_audio(path)
-            dur = len(self._y) / self._sr
+        self._lbl_file.setText(tr("audio.loading", name=Path(path).name))
+        self._show_progress(determinate=True)
+
+        thread = QThread(self)
+        worker = _AudioLoadWorker()
+        worker.moveToThread(thread)
+
+        def _on_progress(pct):
+            self._progress.setValue(pct)
+
+        def _on_finished(y, sr):
+            self._y = y
+            self._sr = sr
+            dur = len(y) / sr
             self._lbl_file.setText(
-                tr("audio.loaded", name=Path(path).name, sr=self._sr, dur=dur)
+                tr("audio.loaded", name=Path(path).name, sr=sr, dur=dur)
             )
             self._btn_analyze.setEnabled(True)
-        except Exception as e:
-            QMessageBox.critical(self, tr("audio.load_failed"), str(e))
+            self._hide_progress()
+            thread.quit()
+
+        def _on_error(msg):
+            self._hide_progress()
+            thread.quit()
+            QMessageBox.critical(self, tr("audio.load_failed"), msg)
+
+        worker.progress.connect(_on_progress)
+        worker.finished.connect(_on_finished)
+        worker.error.connect(_on_error)
+        thread.started.connect(lambda: worker.do_load(path))
+        thread.finished.connect(lambda: worker.deleteLater())
+        thread.finished.connect(lambda: thread.deleteLater())
+        thread.start()
 
     def _on_load_audio(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -181,27 +324,164 @@ class AudioTab(QWidget):
         choice = self._analysis_combo.currentIndex()
         n_seg = self._spin_segments.value()
 
-        try:
-            if choice == 0:
+        if choice == 0:
+            # waveform: fast enough to run inline with progress bar
+            self._show_progress(determinate=False)
+            try:
                 self._plot_waveform(n_seg)
-            elif choice == 1:
-                self._plot_spectrogram(n_seg)
-            elif choice == 2:
-                self._plot_chromagram(n_seg)
-            elif choice == 3:
-                self._plot_mfcc(n_seg)
-            elif choice == 4:
-                self._plot_tonnetz(n_seg)
-            elif choice == 5:
-                self._plot_tempogram(n_seg)
-            self._btn_save_plot.setEnabled(True)
-        except Exception as e:
-            QMessageBox.warning(self, tr("audio.analysis_error"), str(e))
+                self._btn_save_plot.setEnabled(True)
+            except Exception as e:
+                QMessageBox.warning(self, tr("audio.analysis_error"), str(e))
+            finally:
+                self._hide_progress()
+            return
+
+        # choices 1–5: heavy computation in background thread
+        self._show_progress(determinate=False)
+        thread = QThread(self)
+        worker = _AnalysisWorker()
+        worker.moveToThread(thread)
+
+        def _on_finished(result):
+            try:
+                n = result["n_seg"]
+                if result["choice"] == 1:
+                    self._plot_spectrogram_from(result)
+                elif result["choice"] == 2:
+                    self._plot_chromagram_from(result)
+                elif result["choice"] == 3:
+                    self._plot_mfcc_from(result)
+                elif result["choice"] == 4:
+                    self._plot_tonnetz_from(result)
+                elif result["choice"] == 5:
+                    self._plot_tempogram_from(result)
+                self._btn_save_plot.setEnabled(True)
+            except Exception as e:
+                QMessageBox.warning(self, tr("audio.analysis_error"), str(e))
+            finally:
+                self._hide_progress()
+                thread.quit()
+
+        def _on_error(msg):
+            self._hide_progress()
+            thread.quit()
+            QMessageBox.warning(self, tr("audio.analysis_error"), msg)
+
+        worker.finished.connect(_on_finished)
+        worker.error.connect(_on_error)
+        thread.started.connect(lambda: worker.do_analyze(self._y, self._sr, choice, n_seg))
+        thread.finished.connect(lambda: worker.deleteLater())
+        thread.finished.connect(lambda: thread.deleteLater())
+        thread.start()
 
     def _time_segments(self, n_seg):
         """Split full duration into equal-time segment boundaries."""
         total = len(self._y) / self._sr
         return np.linspace(0, total, n_seg + 1)
+
+    # ── plotting-from-worker helpers (main-thread matplotlib only) ──
+
+    def _plot_spectrogram_from(self, r):
+        import librosa.display
+        D = r["D"]
+        bounds = r["bounds"]
+        bound_times = r["bound_times"]
+        n_seg = r["n_seg"]
+        self._canvas.fig.clear()
+        self._canvas.set_size_inches(18, 24)
+        vmin, vmax = r["vmin"], r["vmax"]
+        for i in range(n_seg):
+            ax = self._canvas.fig.add_subplot(n_seg, 1, i + 1)
+            seg = D[:, bounds[i]:bounds[i+1]]
+            t0 = bound_times[i]
+            img = librosa.display.specshow(seg, y_axis='log', sr=self._sr, hop_length=1024,
+                                           x_axis='time', cmap='jet', ax=ax,
+                                           vmin=vmin, vmax=vmax,
+                                           x_coords=np.linspace(t0, bound_times[i+1], seg.shape[1]))
+            ax.set_title(f"Seg {i+1}: {t0:.1f}s – {bound_times[i+1]:.1f}s")
+            self._canvas.fig.colorbar(img, ax=ax, format='%+2.0f dB')
+        self._canvas.tight_layout()
+        self._canvas.draw()
+
+    def _plot_chromagram_from(self, r):
+        import librosa.display
+        chroma = r["chroma"]
+        bounds = r["bounds"]
+        bound_times = r["bound_times"]
+        n = len(bounds) - 1
+        self._canvas.fig.clear()
+        self._canvas.set_size_inches(18, 24)
+        for i in range(n):
+            ax = self._canvas.fig.add_subplot(n, 1, i + 1)
+            seg = chroma[:, bounds[i]:bounds[i+1]]
+            t0 = bound_times[i]
+            librosa.display.specshow(seg, y_axis='chroma', x_axis='time',
+                                     sr=self._sr, hop_length=512, ax=ax,
+                                     x_coords=np.linspace(t0, bound_times[i+1], seg.shape[1]))
+            ax.set_title(f"Seg {i+1}: {t0:.1f}s – {bound_times[i+1]:.1f}s")
+            ax.set_yticks(np.arange(12))
+            ax.set_yticklabels(['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'])
+        self._canvas.tight_layout()
+        self._canvas.draw()
+
+    def _plot_mfcc_from(self, r):
+        import librosa.display
+        mfccs = r["mfccs"]
+        bounds = r["bounds"]
+        bound_times = r["bound_times"]
+        n = len(bounds) - 1
+        self._canvas.fig.clear()
+        self._canvas.set_size_inches(18, 24)
+        for i in range(n):
+            ax = self._canvas.fig.add_subplot(n, 1, i + 1)
+            seg = mfccs[:, bounds[i]:bounds[i+1]]
+            t0 = bound_times[i]
+            librosa.display.specshow(seg, x_axis='time', sr=self._sr,
+                                     hop_length=256, ax=ax,
+                                     x_coords=np.linspace(t0, bound_times[i+1], seg.shape[1]))
+            ax.set_title(f"Seg {i+1}: {t0:.1f}s – {bound_times[i+1]:.1f}s")
+        self._canvas.tight_layout()
+        self._canvas.draw()
+
+    def _plot_tonnetz_from(self, r):
+        import librosa.display
+        tonnetz = r["tonnetz"]
+        bounds = r["bounds"]
+        bound_times = r["bound_times"]
+        n = len(bounds) - 1
+        self._canvas.fig.clear()
+        self._canvas.set_size_inches(18, 24)
+        for i in range(n):
+            ax = self._canvas.fig.add_subplot(n, 1, i + 1)
+            seg = tonnetz[:, bounds[i]:bounds[i+1]]
+            t0 = bound_times[i]
+            librosa.display.specshow(seg, y_axis='tonnetz', x_axis='time',
+                                     sr=self._sr, ax=ax, cmap='Accent',
+                                     x_coords=np.linspace(t0, bound_times[i+1], seg.shape[1]))
+            ax.set_title(f"Seg {i+1}: {t0:.1f}s – {bound_times[i+1]:.1f}s")
+        self._canvas.tight_layout()
+        self._canvas.draw()
+
+    def _plot_tempogram_from(self, r):
+        import librosa.display
+        tempo = r["tempo"]
+        bounds = r["bounds"]
+        bound_times = r["bound_times"]
+        n = len(bounds) - 1
+        self._canvas.fig.clear()
+        self._canvas.set_size_inches(18, 24)
+        for i in range(n):
+            ax = self._canvas.fig.add_subplot(n, 1, i + 1)
+            seg = tempo[:, bounds[i]:bounds[i+1]]
+            t0 = bound_times[i]
+            librosa.display.specshow(seg, y_axis='tempo', x_axis='time',
+                                     sr=self._sr, hop_length=1024, ax=ax, cmap='magma',
+                                     x_coords=np.linspace(t0, bound_times[i+1], seg.shape[1]))
+            ax.set_title(f"Seg {i+1}: {t0:.1f}s – {bound_times[i+1]:.1f}s")
+        self._canvas.tight_layout()
+        self._canvas.draw()
+
+    # ── original plot methods (used inline for waveform; kept for fallback) ──
 
     def _plot_waveform(self, n_seg):
         import librosa.display
