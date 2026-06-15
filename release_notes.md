@@ -1,41 +1,45 @@
-## Twelve-Tone Music Analyzer v1.2
+## Twelve-Tone Music Analyzer v1.3.2
 
 ### 🐛 Fixes
-- **Fixed twelve-tone matrix heatmap axis labels**: top columns now consistently show P0–P11 (prime forms), left rows now consistently show I0–I11 (inversions)
-- **Fixed MEI parser bug**: `cleaned` variable initialization in beam/tuplet stripping loop
-- **Fixed music21 corpus path resolution** in PyInstaller builds (now uses bundled `_internal/music21` directory)
+- **Fixed music21.serial import in frozen app**: `create_12tone_matrix` now uses deferred import to avoid `NameError` in PyInstaller builds
+- **macOS font fallback warnings eliminated**: uses Helvetica Neue on macOS instead of Segoe UI (70ms+ fallback overhead)
+- **Fixed missing `load_language` import** in language selection dialog
 
 ### ✨ New Features
-- **ABC format support** (`.abc` files) — import folk/traditional music scores
-- **Humdrum/\*\*kern format support** (`.krn` files) — import musicology research scores
-- **Pre-install running-process detection**: installer now warns if `TwelveToneAnalyzer.exe` is already running
-- **Default install path** changed to `D:\Twelve-Tone Music Analyzer` to avoid `C:\Program Files` permission issues
+- **P / I / R / RI transformation analysis** — Forte Name dialog now computes Prime, Inversion, Retrograde, and Retrograde-Inversion forms for each pitch-class set
+- **P/I/R/RI match search in Set Relations** — searches the entire universe for sets matching target transformations
+- **Chord Relation Lattice** — build inclusion lattices directly from extracted chord analysis sets
+- **Adaptive node sizing & spacing** in inclusion lattice — prevents label overlap for long pitch-class names
+- **Golden-ratio edge coloring** in lattice — adjacent parent nodes get maximally distinct colors via tab20 colormap
+- **Straight-line edges with arrows** for clearer inclusion relationship display
+- **Interval Vector display** across Forte Name dialog and Set Relations tab
+- **Consecutive interval display** in Normal Order results
+- **A=10, B=11 musicology convention hint** in twelve-tone matrix
+- **Expanded lattice size range** (1–11) with large-span warning
+- **First-launch language selection dialog**
+- **Collapsible panel** and auto-updater support
 
 ### 📦 Installers
 
 | Platform | File | Size |
 |----------|------|------|
-| 🪟 Windows | `TwelveToneAnalyzer_Setup_v1.2.exe` | ~171 MB |
-| 🍎 macOS | `TwelveToneAnalyzer_Setup_v1.2.dmg` | — |
-
-### 🪟 Windows
-1. Run `TwelveToneAnalyzer_Setup_v1.2.exe` (requires administrator privileges)
-2. Follow the setup wizard — default installs to `D:\Twelve-Tone Music Analyzer`
-3. Launch from the desktop shortcut
-4. If upgrading from v1.1, uninstall the old version first
+| 🍎 macOS | `TwelveToneAnalyzer_Setup_v1.3.2.dmg` | ~212 MB |
 
 ### 🍎 macOS
-1. Double-click `TwelveToneAnalyzer_Setup_v1.2.dmg` to mount
+1. Double-click `TwelveToneAnalyzer_Setup_v1.3.2.dmg` to mount
 2. Drag `TwelveToneAnalyzer.app` to `Applications`
 3. Launch from Launchpad or Applications
 
 ### Features
 - Twelve-tone matrix analysis with heatmap
-- Forte set classification
+- P / I / R / RI transformation computation
+- Forte set classification with interval vectors
 - Chord analysis (trichords / tetrachords / hexachords)
+- Inclusion lattice with adaptive visualization
+- Chord Relation Lattice
+- Set relations (subsets, supersets, Z/K relations, nexus, transformations)
 - Audio analysis (librosa)
 - Score visualization (music21)
-- Inclusion lattice
 - ABC and Humdrum format import
 
-Built with PyInstaller + NSIS | Windows 10+ / macOS 10.15+
+Built with PyInstaller | macOS 10.15+
