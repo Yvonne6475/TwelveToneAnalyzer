@@ -398,9 +398,12 @@ class LatticeTab(QWidget):
         self._chord_combo.view().setMinimumWidth(max_label_width + 40)
         self._chord_combo.setEnabled(True)
         self._btn_chord_relations.setEnabled(True)
-        # Auto-select first entry so user can see data was extracted
+        # Auto-fill first entry — setCurrentIndex may be a no-op if Qt already
+        # tracked index 0 during the blocked addItem phase, so fill explicitly.
         if self._chord_entries:
+            self._chord_combo.setCurrentIndex(-1)
             self._chord_combo.setCurrentIndex(0)
+            self._on_chord_combo_changed(0)
 
     def _on_analyze_collections(self):
         """Parse multi-line pc-sets, classify each, and load into the combo."""
@@ -439,8 +442,11 @@ class LatticeTab(QWidget):
             self._chord_combo.view().setMinimumWidth(max_label_width + 40)
             self._chord_combo.setEnabled(True)
             self._btn_chord_relations.setEnabled(True)
-            # Auto-select first entry so user can see data was extracted
+            # Auto-fill first entry — setCurrentIndex may be a no-op if Qt already
+            # tracked index 0 during the blocked addItem phase, so fill explicitly.
+            self._chord_combo.setCurrentIndex(-1)
             self._chord_combo.setCurrentIndex(0)
+            self._on_chord_combo_changed(0)
 
     def _on_chord_combo_changed(self, idx: int):
         if idx < 0 or idx >= len(self._chord_entries):
