@@ -201,7 +201,9 @@ class MainWindow(QMainWindow):
         errors = []
         for tab in [self._overview_tab, self._annotated_score_tab,
                      self._visualization_tab, self._twelve_tone_tab,
-                     self._chord_tab, self._lattice_tab]:
+                     self._chord_tab, self._lattice_tab,
+                     self._forte_name_tab, self._set_relations_tab,
+                     self._audio_tab]:
             try:
                 tab.on_score_loaded(score, path)
             except Exception:

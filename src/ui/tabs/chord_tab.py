@@ -130,6 +130,9 @@ class ChordTab(QWidget):
 
     def on_score_loaded(self, score, path: str):
         self._score = score
+        # Clear old chord analysis results — user must re-extract
+        self._results = []
+        self._table.setRowCount(0)
         max_m = get_measure_range(score)[1]
         self._spin_end.setMaximum(max_m)
         self._spin_end.setValue(min(30, max_m))

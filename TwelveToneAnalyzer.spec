@@ -18,7 +18,34 @@ hiddenimports = ['matplotlib.backends.backend_qt5agg', 'PyQt5.sip', 'matplotlib.
     'librosa', 'scipy.interpolate', 'scipy.signal', 'numpy']
 binaries += collect_dynamic_libs('PyQt5')
 tmp_ret = collect_all('PyQt5')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+# Filter Qt dev-tool data (uic, pylupdate, pyrcc) and unused-module DLLs
+# so they are not packaged.  Runtime-only Qt modules (Core/Gui/Widgets/
+# Network/PrintSupport/Svg/OpenGL) are kept.
+_qt_exclude_dll = {
+    'Qt5Designer', 'Qt5Help', 'Qt5Test', 'Qt5DBus',
+    'Qt5Bluetooth', 'Qt5Nfc', 'Qt5Sql', 'Qt5SerialPort',
+    'Qt5Sensors', 'Qt5Location', 'Qt5RemoteObjects', 'Qt5WebChannel',
+    'Qt5WebSockets', 'Qt5XmlPatterns', 'Qt5TextToSpeech', 'Qt5WinExtras',
+    'Qt5Quick3D', 'Qt5QuickTest', 'Qt5Positioning',
+    'Qt5Multimedia', 'Qt5MultimediaWidgets',
+}
+def _keep_qt_binary(bin_path):
+    name = os.path.basename(bin_path)
+    for dll in _qt_exclude_dll:
+        if name.startswith(dll):
+            return False
+    return True
+
+def _keep_qt_data(data_path):
+    """Exclude uic/, pyrcc, pylupdate source trees from packaging."""
+    lower = data_path.replace('\\', '/').lower()
+    if '/uic/' in lower or '/pylupdate' in lower or '/pyrcc' in lower:
+        return False
+    return True
+
+datas += [(s, d) for (s, d) in tmp_ret[0] if _keep_qt_data(s)]
+binaries += [(s, d) for (s, d) in tmp_ret[1] if _keep_qt_binary(s)]
+hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('music21')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
@@ -32,7 +59,26 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=['pyi_rth_qt_dll.py', 'pyi_rth_music21.py'],
-    excludes=[],
+    excludes=[
+        # Qt dev / build tools — not needed at runtime
+        'PyQt5.pylupdate', 'PyQt5.pylupdate_main',
+        'PyQt5.pyrcc', 'PyQt5.pyrcc_main',
+        'PyQt5.uic',
+        'PyQt5.QtDesigner',
+        'PyQt5.QtHelp',
+        'PyQt5.QtTest',
+        'PyQt5.QtDBus',
+        # Unused Qt modules — safe to exclude, reduce package size
+        'PyQt5.QtBluetooth', 'PyQt5.QtNfc',
+        'PyQt5.QtSql', 'PyQt5.QtSerialPort',
+        'PyQt5.QtSensors', 'PyQt5.QtLocation',
+        'PyQt5.QtRemoteObjects', 'PyQt5.QtWebChannel',
+        'PyQt5.QtWebSockets', 'PyQt5.QtXmlPatterns',
+        'PyQt5.QtTextToSpeech', 'PyQt5.QtWinExtras',
+        'PyQt5.QtQuick3D', 'PyQt5.QtQuickTest',
+        'PyQt5.QtPositioning',
+        'PyQt5.QAxContainer',
+    ],
     noarchive=False,
     optimize=0,
 )

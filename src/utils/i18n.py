@@ -36,7 +36,7 @@ TRANSLATIONS = {
 
     # Tabs
     "tab.overview": {"zh": "总览", "en": "Overview"},
-    "tab.visualization": {"zh": "可视化", "en": "Visualization"},
+    "tab.visualization": {"zh": "音高可视化", "en": "Pitch Visualization"},
     "tab.twelve_tone": {"zh": "十二音分析", "en": "Twelve-Tone"},
     "tab.chord": {"zh": "和弦分析", "en": "Chord Analysis"},
     "tab.audio": {"zh": "音频分析", "en": "Audio Analysis"},
@@ -126,7 +126,9 @@ TRANSLATIONS = {
     "sr.rel_z": {"zh": "[{pc}]  Forte: {forte}  Interval Vector: {iv}", "en": "[{pc}]  Forte: {forte}  Interval Vector: {iv}"},
     "sr.combo_bar": {"zh": "Bar {bar}合并: [{pc}]  Forte: {forte}", "en": "Bar {bar} merged: [{pc}]  Forte: {forte}"},
     "sr.combo_item": {"zh": "[{pc}]  Forte: {forte}", "en": "[{pc}]  Forte: {forte}"},
-    "sr.nexus_item": {"zh": "[Nexus] [{pc}]  Forte: {forte}", "en": "[Nexus] [{pc}]  Forte: {forte}"},
+    "sr.nexus_item": {"zh": "[Nexus] [{pc}]  Forte: {forte}  (关联数: {score})", "en": "[Nexus] [{pc}]  Forte: {forte}  (relations: {score})"},
+    "sr.nexus_dialog_title": {"zh": "Nexus Set 结果", "en": "Nexus Set Results"},
+    "sr.nexus_dialog_header": {"zh": "找到 {count} 个 Nexus 候选 (关联总数: {score})，请选择一个:", "en": "Found {count} nexus candidate(s) (total relations: {score}). Select one:"},
     "sr.computing": {"zh": "计算中...", "en": "Computing..."},
     "sr.progress": {"zh": "计算中... {current}/{total}", "en": "Computing... {current}/{total}"},
 

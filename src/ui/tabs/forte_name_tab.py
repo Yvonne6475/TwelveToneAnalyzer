@@ -89,6 +89,13 @@ class ForteNameTab(QWidget):
             return []
         return [normal[i+1] - normal[i] for i in range(len(normal) - 1)]
 
+    def on_score_loaded(self, score=None, path=None):
+        """Clear old results when a new score is loaded."""
+        self._results = []
+        self._table.setRowCount(0)
+        self._btn_copy.setEnabled(False)
+        self._btn_export.setEnabled(False)
+
     def _on_analyze(self):
         text = self._input_edit.toPlainText().strip()
         if not text:

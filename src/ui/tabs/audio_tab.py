@@ -211,9 +211,25 @@ class AudioTab(QWidget):
         if self._y is not None:
             self._btn_analyze.setEnabled(True)
 
+    def on_score_loaded(self, score=None, path=None):
+        """Clear old audio analysis when a new score is loaded."""
+        self._audio_path = ""
+        self._y = None
+        self._sr = None
+        self._lbl_file.setText(tr("audio.no_file"))
+        self._btn_analyze.setEnabled(False)
+        self._btn_save_plot.setEnabled(False)
+        self._canvas.fig.clear()
+        self._canvas.draw_idle()
+
     def on_audio_loaded(self, path: str):
         self._audio_path = path
         self._lbl_file.setText(tr("audio.loading", name=Path(path).name))
+        # Clear old analysis plots — user must re-analyze
+        self._btn_analyze.setEnabled(False)
+        self._btn_save_plot.setEnabled(False)
+        self._canvas.fig.clear()
+        self._canvas.draw_idle()
         self._show_progress(determinate=True)
 
         thread = QThread(self)

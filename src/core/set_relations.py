@@ -123,17 +123,16 @@ def set_complex_around(target: list[int], universe: list[list[int]],
 
 
 def nexus_set(universe: list[list[int]], progress_callback=None) -> dict:
-    """Find the nexus set: maximally related to all others in the universe.
+    """Find the nexus set(s): maximally related to all others in the universe.
 
-    Precomputes interval vectors and TnI keys for O(1) Z-relation lookup.
+    Returns ALL candidates that tie for the highest score (not just the first).
     """
     iv_cache = _precompute_iv(universe)
     # Precompute TnI keys for Z-relation check
     tn_cache = {_normalize(s): _tni_equivalent_key(s) for s in universe}
 
-    best = None
+    best_candidates = []
     best_score = -1
-    best_complex = None
 
     total = len(universe)
     for idx, target in enumerate(universe):
@@ -145,7 +144,12 @@ def nexus_set(universe: list[list[int]], progress_callback=None) -> dict:
                  len(cpx["invariants"]))
         if score > best_score:
             best_score = score
-            best = target
-            best_complex = cpx
+            best_candidates = [(target, cpx)]
+        elif score == best_score:
+            best_candidates.append((target, cpx))
 
-    return {"nexus": best, "score": best_score, "complex": best_complex}
+    return {
+        "nexus_candidates": [c[0] for c in best_candidates],
+        "score": best_score,
+        "complexes": [c[1] for c in best_candidates],
+    }

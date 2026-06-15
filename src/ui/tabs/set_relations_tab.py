@@ -3,7 +3,8 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
     QTextEdit, QComboBox, QPushButton, QScrollArea,
-    QMessageBox, QApplication,
+    QMessageBox, QApplication, QDialog, QListWidget,
+    QDialogButtonBox, QAbstractItemView,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt5.QtGui import QFontMetrics
@@ -155,6 +156,13 @@ class SetRelationsTab(QWidget):
         scroll.setWidget(self._results_widget)
         layout.addWidget(scroll, 1)
 
+    def on_score_loaded(self, score=None, path=None):
+        """Clear old chord-derived data when a new score is loaded."""
+        self._universe = []
+        self._universe_edit.clear()
+        self._target_combo.clear()
+        self._clear_results()
+
     def _ensure_thread(self):
         """Create a fresh thread + worker if needed (one-shot)."""
         if self._thread is not None:
@@ -255,17 +263,58 @@ class SetRelationsTab(QWidget):
 
     def _on_nexus_done(self, result: dict):
         self._set_busy(False)
-        nexus = result["nexus"]
+        candidates = result["nexus_candidates"]
+        complexes = result["complexes"]
+        score = result["score"]
+        self._clear_results()
+
+        # ── Dedicated nexus dialog (avoids combo-clash + shows score) ──
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("sr.nexus_dialog_title"))
+        dlg.resize(520, 280)
+        dlg_layout = QVBoxLayout(dlg)
+
+        dlg_layout.addWidget(QLabel(
+            tr("sr.nexus_dialog_header", count=len(candidates), score=score)))
+
+        lst = QListWidget()
+        lst.setSelectionMode(QAbstractItemView.SingleSelection)
+        for i, nexus in enumerate(candidates):
+            nexus_str = _pc_str(nexus)
+            label = tr("sr.nexus_item", pc=nexus_str, forte=_forte(nexus), score=score)
+            lst.addItem(label)
+            lst.item(lst.count() - 1).setData(Qt.UserRole, i)
+        lst.setCurrentRow(0)
+        dlg_layout.addWidget(lst)
+
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        dlg_layout.addWidget(btns)
+
+        if dlg.exec_() != QDialog.Accepted:
+            return
+
+        # User picked a nexus → select in combo + directly display analysis
+        selected = lst.currentItem()
+        if selected is None:
+            return
+        i = selected.data(Qt.UserRole)
+        nexus = candidates[i]
         nexus_str = _pc_str(nexus)
+
         idx = self._target_combo.findData(nexus_str)
-        if idx >= 0:
-            self._target_combo.setCurrentIndex(idx)
-        else:
+        if idx < 0:
             self._target_combo.blockSignals(True)
-            self._target_combo.insertItem(0, tr("sr.nexus_item", pc=nexus_str, forte=_forte(nexus)), nexus_str)
+            self._target_combo.insertItem(0,
+                tr("sr.nexus_item", pc=nexus_str, forte=_forte(nexus), score=score),
+                nexus_str)
             self._target_combo.setCurrentIndex(0)
             self._target_combo.blockSignals(False)
-        self._display_complex(result["complex"], nexus_info=result)
+        else:
+            self._target_combo.setCurrentIndex(idx)
+
+        self._display_complex(complexes[i], nexus_info=result)
 
     def _on_worker_error(self, msg: str):
         self._set_busy(False)
@@ -416,9 +465,10 @@ class SetRelationsTab(QWidget):
                intervals=" ".join(map(str, intervals)))))
 
         if nexus_info:
+            candidates = nexus_info.get("nexus_candidates", [nexus_info.get("nexus")])
+            nexus_label = ", ".join(_pc_str(c) for c in candidates)
             info_layout.addWidget(QLabel(
-                tr("sr.info_nexus", pc=_pc_str(nexus_info["nexus"]),
-                   score=nexus_info["score"])))
+                tr("sr.info_nexus", pc=nexus_label, score=nexus_info["score"])))
         self._results_layout.addWidget(info_group)
 
         # Relationships

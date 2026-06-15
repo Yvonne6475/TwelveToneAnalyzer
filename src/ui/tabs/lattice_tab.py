@@ -1,6 +1,5 @@
 """Inclusion Lattice tab: visualize subset relations in pitch-class sets."""
 
-import math
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
     QLineEdit, QSpinBox, QPushButton, QComboBox, QTextEdit,
@@ -156,6 +155,15 @@ class LatticeTab(QWidget):
 
     def on_score_loaded(self, score=None, path=None):
         mw = self._main_window
+        # Clear old chord-derived data — user must re-click "Get from Chord"
+        self._chord_entries = []
+        self._chord_combo.clear()
+        self._chord_combo.setEnabled(False)
+        self._btn_chord_relations.setEnabled(False)
+        self._btn_save.setEnabled(False)
+        self._canvas.clear()
+        self._canvas.draw()
+        self._lbl_edge_hint.setVisible(False)
         if mw and mw.score:
             self._score = mw.score
             self._btn_from_row.setEnabled(True)
@@ -254,15 +262,13 @@ class LatticeTab(QWidget):
         else:
             color_map = {}
 
-        # Edge style — networkx uses node_size to compute where edges
-        # terminate.  Pass a virtual size larger than the visual node
-        # so edges end well outside the white circle and arrowheads
-        # (size=_ARROW_SIZE px) are fully visible.
-        _node_radius = math.sqrt(n_size / math.pi)
-        _edge_node_size = math.pi * (_node_radius + 18) ** 2
+        # Edge style — use the SAME node_size as draw_networkx_nodes so
+        # edges start/end exactly at the circle boundary.  Nodes are
+        # drawn AFTER edges (white fill, black border) layering cleanly
+        # on top of the arrowhead while the shaft remains visible.
         edge_kw = dict(
             ax=ax, arrows=True, arrowsize=_ARROW_SIZE,
-            node_size=_edge_node_size,
+            node_size=n_size,
             node_shape='o',
             connectionstyle='arc3,rad=0.0',
         )
@@ -390,6 +396,7 @@ class LatticeTab(QWidget):
         self._chord_combo.view().setMinimumWidth(max_label_width + 40)
         self._chord_combo.setEnabled(True)
         self._btn_chord_relations.setEnabled(True)
+        # Auto-select first entry so user can see data was extracted
         if self._chord_entries:
             self._chord_combo.setCurrentIndex(0)
 
@@ -430,6 +437,7 @@ class LatticeTab(QWidget):
             self._chord_combo.view().setMinimumWidth(max_label_width + 40)
             self._chord_combo.setEnabled(True)
             self._btn_chord_relations.setEnabled(True)
+            # Auto-select first entry so user can see data was extracted
             self._chord_combo.setCurrentIndex(0)
 
     def _on_chord_combo_changed(self, idx: int):
