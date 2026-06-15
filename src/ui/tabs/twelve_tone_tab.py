@@ -106,6 +106,12 @@ class TwelveToneTab(QWidget):
         matrix_layout = QVBoxLayout(matrix_group)
         matrix_layout.setContentsMargins(0, 0, 0, 0)
 
+        # Hint: A=10, B=11
+        hint = QLabel("A = 10    B = 11")
+        hint.setAlignment(Qt.AlignRight)
+        hint.setStyleSheet("color: #888; font-size: 10pt; padding: 0 6px;")
+        matrix_layout.addWidget(hint)
+
         # Scrollable container for numeric matrix
         matrix_scroll = QScrollArea()
         matrix_scroll.setWidgetResizable(True)
