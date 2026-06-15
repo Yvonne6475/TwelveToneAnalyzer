@@ -90,6 +90,7 @@ jobs:
       - name: Build NSIS installer
         shell: bash
         run: |
+          export PATH="$PATH:/c/Program Files (x86)/NSIS:/c/Program Files/NSIS:$PROGRAMFILES/NSIS:${PROGRAMFILES(x86)}/NSIS"
           makensis /DVERSION="${{ steps.ver.outputs.version }}" installer.nsi
 
       - uses: actions/upload-artifact@v4
