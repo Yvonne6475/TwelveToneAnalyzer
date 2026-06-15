@@ -34,8 +34,8 @@ class TwelveToneTab(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 2, 4, 2)
-        layout.setSpacing(2)
+        layout.setContentsMargins(2, 0, 2, 0)
+        layout.setSpacing(0)
 
         # ── Open score button ────────────────────────────────────────
         top_bar = QHBoxLayout()
@@ -104,12 +104,12 @@ class TwelveToneTab(QWidget):
         # ═══════════════════════════════════════════════════════════════
         matrix_group = QGroupBox(tr("tt.matrix_group"))
         matrix_layout = QVBoxLayout(matrix_group)
-        matrix_layout.setContentsMargins(2, 1, 2, 2)
+        matrix_layout.setContentsMargins(0, 0, 0, 0)
 
         # Scrollable container for numeric matrix
         matrix_scroll = QScrollArea()
         matrix_scroll.setWidgetResizable(True)
-        matrix_scroll.setMaximumHeight(450)
+        matrix_scroll.setMaximumHeight(490)
         matrix_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
 
         self._matrix_numeric = QTextEdit()
