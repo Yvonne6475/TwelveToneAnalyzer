@@ -1,4 +1,4 @@
-## Twelve-Tone Music Analyzer v1.3.2
+## Twelve-Tone Music Analyzer v1.3.3
 
 ### 🐛 Fixes
 - **Fixed music21.serial import in frozen app**: `create_12tone_matrix` now uses deferred import to avoid `NameError` in PyInstaller builds

@@ -33,7 +33,7 @@ SetOverwrite try
 
 ; Definitions
 !define PRODUCT "Twelve-Tone Music Analyzer"
-!define VERSION "1.3.2"
+!define VERSION "1.3.3"
 !define PUBLISHER "Yvonne"
 !define EXE_NAME "TwelveToneAnalyzer.exe"
 !define ZIP_NAME "app.zip"
