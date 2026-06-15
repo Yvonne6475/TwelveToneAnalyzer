@@ -54,6 +54,24 @@ if getattr(sys, 'frozen', False):
             pass
     del _bundle_dir, _corpus_path
 
+# ── Configure music21 MuseScore path ─────────────────────────────
+# music21's excerpt.write('musicxml.pdf', ...) internally invokes
+# MuseScore via subprocess.  We need to tell music21 where MuseScore
+# lives so it doesn't show "Cannot find a path to the 'mscore' file".
+# Do this unconditionally (frozen or dev) so PDF export always works.
+try:
+    from music21 import environment
+    from src.utils.config import get_musescore_path
+    _ms_path = get_musescore_path()
+    if _ms_path:
+        _env2 = environment.Environment()
+        _env2['musicxmlPath'] = _ms_path
+        # Also set the PNG path — music21 uses it for lilypond/pdf fallback
+        if 'musescoreDirectPNGPath' not in _env2 or not _env2['musescoreDirectPNGPath']:
+            _env2['musescoreDirectPNGPath'] = _ms_path
+except Exception:
+    pass
+
 # ── Fix PyQt5 DLL loading on Windows ──────────────────────────────
 # PyQt5 5.15.6+ stores Qt5 DLLs in PyQt5/Qt5/bin/ and the .pyd files
 # in PyQt5/ root. On some Windows setups, the DLL loader cannot resolve
