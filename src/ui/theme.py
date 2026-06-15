@@ -35,10 +35,10 @@ def monospace_font_family() -> str:
     Used by the 12-tone matrix numeric display and other code-like text.
     """
     if IS_MAC:
-        # SF Mono ships on macOS 10.11+; fall back to Menlo (10.6+) then Courier.
-        return '"SF Mono", "Menlo", "Courier New", monospace'
+        # Menlo ships on all macOS versions; Courier New is the universal fallback.
+        return '"Menlo", "Courier New"'
     # Windows: Consolas is the standard; Courier New as fallback.
-    return '"Consolas", "Courier New", monospace'
+    return '"Consolas", "Courier New"'
 
 
 def matrix_text_stylesheet(font_size_pt: int = 19) -> str:
@@ -85,7 +85,7 @@ QMainWindow {{
 QWidget {{
     background-color: #faf8f5;
     color: #2c2c2c;
-    font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-family: "Helvetica Neue", "PingFang SC";
     font-size: {fs}pt;
 }}
 
@@ -359,7 +359,7 @@ QTextEdit {{
     border: 1px solid #c8b898;
     border-radius: 6px;
     padding: 8px;
-    font-family: "Consolas", "Courier New", monospace;
+    font-family: {monospace_font_family()};
     font-size: {fs}pt;
 }}
 

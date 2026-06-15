@@ -59,6 +59,16 @@ if sys.platform == 'win32':
                         pass
         del ctypes, _candidates, _p, _qt_bin, _local_qt, _d, _dll, _dll_path
 
+# ── Fix matplotlib cache path in frozen app ─────────────────────────
+# PyInstaller sets a temp directory as the home, so matplotlib writes
+# its font cache there.  It gets deleted on exit → rebuilt every launch.
+# Override MPLCONFIGDIR to a persistent location early, BEFORE any
+# matplotlib import.
+if getattr(sys, 'frozen', False):
+    _mpl_dir = os.path.join(os.path.expanduser("~"), ".matplotlib")
+    os.makedirs(_mpl_dir, exist_ok=True)
+    os.environ["MPLCONFIGDIR"] = _mpl_dir
+
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from PyQt5.QtGui import QFont
 
