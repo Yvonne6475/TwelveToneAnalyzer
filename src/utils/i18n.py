@@ -239,7 +239,7 @@ TRANSLATIONS = {
     "tt.btn_dividing_panel": {"zh": "十二音列重组集合", "en": "Open Row Dividing to Sets Panel"},
     "tt.panel_btn_open": {"zh": "▸ 十二音列重组集合", "en": "▸ Open Row Dividing to Sets Panel"},
     "tt.panel_btn_close": {"zh": "▾ 关闭十二音列重组集合", "en": "▾ Close Row Dividing to Sets Panel"},
-    "tt.matrix_group": {"zh": "12 音矩阵", "en": "12-Tone Matrix"},
+    "tt.matrix_group": {"zh": "12 音矩阵 (A=10, B=11)", "en": "12-Tone Matrix (A=10, B=11)"},
     "tt.heatmap_save_prompt": {"zh": "热力图已关闭。是否保存为 PNG？", "en": "Heatmap closed. Save as PNG?"},
     "tt.forms_exported": {"zh": "四种形式已导出至:\n{path}", "en": "Four forms exported to:\n{path}"},
     "tt.export_matrix": {"zh": "导出矩阵 PNG", "en": "Export Matrix PNG"},
