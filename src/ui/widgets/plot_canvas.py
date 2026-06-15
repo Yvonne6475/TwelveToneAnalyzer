@@ -10,7 +10,7 @@ class PlotCanvas(FigureCanvas):
     """Embeddable matplotlib canvas that supports toolbar navigation."""
 
     def __init__(self, parent=None, dpi=100):
-        self.fig = Figure(dpi=dpi)
+        self.fig = Figure(dpi=dpi, facecolor='#fefdfb')
         super().__init__(self.fig)
         self.setParent(parent)
         self.setMinimumHeight(350)

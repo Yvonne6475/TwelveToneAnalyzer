@@ -88,6 +88,7 @@ class AudioTab(QWidget):
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(False)
         self._scroll_area.setWidget(self._canvas)
+        self._scroll_area.setStyleSheet("QScrollArea { background-color: #fefdfb; border: none; }")
         layout.addWidget(self._scroll_area, 1)
 
     def on_audio_loaded(self, path: str):
