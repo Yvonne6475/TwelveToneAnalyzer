@@ -88,8 +88,8 @@ hiddenimports = [
     'src.utils.i18n',
 ]
 
-# Collect all from PyQt5 and music21
-for _pkg in ('PyQt5', 'music21'):
+# Collect all from PyQt5, music21, and scipy (C extensions often missed)
+for _pkg in ('PyQt5', 'music21', 'scipy'):
     _ret = collect_all(_pkg)
     datas += _ret[0]
     binaries += _ret[1]
