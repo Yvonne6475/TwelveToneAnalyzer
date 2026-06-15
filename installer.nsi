@@ -34,7 +34,6 @@ SetOverwrite try
 ; VERSION injected by CI via /DVERSION=... (do NOT hardcode here)
 !define PUBLISHER "Yvonne"
 !define EXE_NAME "TwelveToneAnalyzer.exe"
-!define ZIP_NAME "app.zip"
 
 Name "${PRODUCT} ${VERSION}"
 OutFile "TwelveToneAnalyzer_Setup_v${VERSION}.exe"
@@ -88,18 +87,8 @@ Section "Install"
   CreateDirectory "$INSTDIR"
   SetOutPath "$INSTDIR"
 
-  DetailPrint "Extracting application files..."
-  ; app.zip is already compressed — disable NSIS LZMA so it copies raw (instant)
-  SetCompress off
-  File /oname=$INSTDIR\${ZIP_NAME} "dist\${ZIP_NAME}"
-  SetCompress auto
-  nsExec::ExecToLog "powershell -NoProfile -Command \"Expand-Archive -Path '$INSTDIR\\${ZIP_NAME}' -DestinationPath '$INSTDIR' -Force\""
-  Pop $0
-  ${If} $0 != 0
-    MessageBox MB_ICONSTOP "Extraction failed (code $0).$\nPlease try reinstalling or contact support."
-    Abort
-  ${EndIf}
-  Delete "$INSTDIR\${ZIP_NAME}"
+  DetailPrint "Installing application files..."
+  File /r /x *.pyc /x __pycache__ /x .git "dist\TwelveToneAnalyzer\*"
 
   ; Start menu shortcuts
   CreateDirectory "$SMPROGRAMS\${PRODUCT}"
