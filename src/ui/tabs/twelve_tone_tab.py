@@ -318,11 +318,8 @@ class TwelveToneTab(QWidget):
         self._heatmap_timer.timeout.connect(_check_close)
         self._heatmap_timer.start(300)
 
-        # Numeric matrix — data source: music21.serial.TwelveToneRow
-        ttr = serial.TwelveToneRow(self._row)
-        m21_matrix = ttr.matrix()
-        # Extract pitch-class integers from the TwelveToneMatrix
-        matrix = [[m21_matrix[i][j].pitch.pitchClass for j in range(12)] for i in range(12)]
+        # Numeric matrix — uses generate_matrix (preserves original P row order)
+        matrix = generate_matrix(self._row)
 
         lines = []
 
