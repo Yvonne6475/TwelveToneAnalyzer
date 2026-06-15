@@ -91,6 +91,8 @@ jobs:
           $nsis = "C:\Program Files (x86)\NSIS\makensis.exe"
           if (-not (Test-Path $nsis)) { $nsis = "C:\Program Files\NSIS\makensis.exe" }
           & $nsis /DVERSION="${{ steps.ver.outputs.version }}" installer.nsi
+          # NSIS outputs to current dir; move to dist/ for artifact upload
+          Move-Item -Force TwelveToneAnalyzer_Setup_v*.exe dist/
 
       - uses: actions/upload-artifact@v4
         with:
