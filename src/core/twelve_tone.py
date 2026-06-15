@@ -78,6 +78,7 @@ def make_group_stream(groups: list, title: str = "Row Groups") -> stream.Part:
     return s
 
 
-def create_12tone_matrix(row: list[int]) -> serial.TwelveToneRow:
+def create_12tone_matrix(row: list[int]):
     """Create a music21 TwelveToneRow object."""
+    from music21 import serial
     return serial.TwelveToneRow(row)

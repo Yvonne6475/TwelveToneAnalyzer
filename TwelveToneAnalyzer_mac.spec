@@ -14,6 +14,7 @@ hiddenimports = [
     'PyQt5.QtWidgets',
     'PyQt5.sip',
     # music21
+    'music21.serial',
     'music21.converter.subConverters',
     'music21.mei',
     'music21.mei.base',
