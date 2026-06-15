@@ -342,9 +342,13 @@ class TwelveToneTab(QWidget):
         COL_GAP = "  "
         PAD = " " * 6
 
-        # Data rows — all 12 rows use I label on left, R label on right
+        # I header row (top) — one I label per column
+        i_labels = [_edge("I", matrix[0][j]) for j in range(12)]
+        lines.append(PAD + COL_GAP.join(f"{lbl:>4}" for lbl in i_labels))
+
+        # Data rows — P on left, R on right
         for i, r in enumerate(matrix):
-            prefix = _edge("I", r[0])
+            prefix = _edge("P", r[0])
             suffix = _edge("R", r[-1])
             cells = COL_GAP.join(f"{_pc_label(v):>4}" for v in r)
             lines.append(f"{prefix}  {cells}  {suffix}")
