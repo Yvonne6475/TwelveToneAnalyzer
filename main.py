@@ -64,11 +64,9 @@ try:
     from src.utils.config import get_musescore_path
     _ms_path = get_musescore_path()
     if _ms_path:
-        _env2 = environment.Environment()
-        _env2['musicxmlPath'] = _ms_path
-        # Also set the PNG path — music21 uses it for lilypond/pdf fallback
-        if 'musescoreDirectPNGPath' not in _env2 or not _env2['musescoreDirectPNGPath']:
-            _env2['musescoreDirectPNGPath'] = _ms_path
+        _env21 = environment.Environment()
+        _env21['musicxmlPath'] = _ms_path
+        _env21['musescoreDirectPNGPath'] = _ms_path
 except Exception:
     pass
 

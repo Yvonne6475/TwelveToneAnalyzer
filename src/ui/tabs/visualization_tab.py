@@ -117,6 +117,29 @@ class VisualizationTab(QWidget):
     def on_language_changed(self):
         pass
 
+    @staticmethod
+    def _extract_notes(stream, part_idx: int):
+        """Extract (pitchClass, quarterLength, measureNumber) from a stream/part."""
+        import music21
+        if part_idx >= 0 and hasattr(stream, 'parts'):
+            try:
+                s = stream.parts[part_idx].measures(1, None)
+            except (IndexError, AttributeError):
+                s = stream
+        else:
+            s = stream
+        notes = []
+        for el in s.recurse():
+            if isinstance(el, (music21.note.Note, music21.chord.Chord)):
+                m = el.getContextByClass('Measure')
+                mn = m.number if m else 0
+                if isinstance(el, music21.note.Note):
+                    notes.append((el.pitch.pitchClass, el.quarterLength, mn))
+                else:
+                    for p in el.pitches:
+                        notes.append((p.pitchClass, el.quarterLength, mn))
+        return notes
+
     def _on_generate(self):
         if not self._score:
             return
@@ -131,46 +154,96 @@ class VisualizationTab(QWidget):
 
         try:
             plt.close('all')
-            self._generate_plot(plot_idx, part_idx, start, end)
-            self._current_fig = plt.gcf()
+            fig = self._generate_plot(plot_idx, part_idx, start, end)
+            self._current_fig = fig if fig is not None else plt.gcf()
             self._current_plot_idx = plot_idx
             self._btn_save.setEnabled(True)
         except Exception as e:
             QMessageBox.warning(self, tr("viz.plot_error"), str(e))
 
     def _generate_plot(self, plot_type: int, part_idx: int, start: int, end: int):
+        src = self._score.measures(start, end)
+
+        # ── Pure-matplotlib charts (work on all platforms) ──────────
+        if plot_type == 1:
+            # Histogram — pitch class distribution
+            notes = self._extract_notes(src, part_idx)
+            if not notes:
+                plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center',
+                         transform=plt.gca().transAxes)
+                return plt.gcf()
+            pcs = [n[0] for n in notes]
+            plt.hist(pcs, bins=12, range=(-0.5, 11.5), color='steelblue', edgecolor='white')
+            plt.xlabel('Pitch Class')
+            plt.ylabel('Count')
+            plt.title('Pitch Class Histogram')
+            plt.xticks(range(12))
+            return plt.gcf()
+
+        elif plot_type == 3:
+            # Scatter — measure × pitch class
+            notes = self._extract_notes(src, part_idx)
+            if not notes:
+                plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center',
+                         transform=plt.gca().transAxes)
+                return plt.gcf()
+            measures = [n[2] for n in notes]
+            pcs = [n[0] for n in notes]
+            plt.scatter(measures, pcs, alpha=0.5, s=20, c='steelblue')
+            plt.xlabel('Measure')
+            plt.ylabel('Pitch Class')
+            plt.yticks(range(12))
+            plt.title('Pitch Class by Measure')
+            return plt.gcf()
+
+        elif plot_type == 4:
+            # Horizontal bar — duration-weighted pitch class
+            notes = self._extract_notes(src, part_idx)
+            if not notes:
+                plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center',
+                         transform=plt.gca().transAxes)
+                return plt.gcf()
+            weights = [0.0] * 12
+            for pc, dur, _m in notes:
+                weights[pc] += dur
+            plt.barh(range(12), weights, color='steelblue', edgecolor='white')
+            plt.yticks(range(12), [str(i) for i in range(12)])
+            plt.xlabel('Total Duration (quarterLength)')
+            plt.ylabel('Pitch Class')
+            plt.title('Duration-Weighted Pitch Class')
+            return plt.gcf()
+
+        # ── music21-powered charts ──────────────────────────────────
         from music21 import graph
 
         if plot_type == 0:
-            p = self._score.measures(start, end).plot(doneAction=None)
+            p = src.plot(doneAction=None)
             p.figure.show()
-        elif plot_type == 1:
-            p = self._score.measures(start, end).plot('histogram', 'pitchClass', doneAction=None)
-            p.figure.show()
+            return p.figure
+
         elif plot_type == 2:
             p = graph.plot.ScatterWeightedPitchClassQuarterLength(
                 self._score.measures(start, end), doneAction=None
             )
             p.run()
             p.figure.show()
-        elif plot_type == 3:
-            p = self._score.measures(start, end).plot('scatter', 'measure', 'pitchClass', doneAction=None)
-            p.figure.show()
-        elif plot_type == 4:
-            src = self._midi_score if self._midi_score else self._score
-            p = src.measures(start, end).plot('horizontalbarweighted', doneAction=None)
-            p.figure.show()
+            return p.figure
+
         elif plot_type == 5:
-            src = self._midi_score if self._midi_score else self._score
-            plot_3d = src.measures(start, end).plot('3dbars', doneAction=None)
+            plot_3d = src.plot('3dbars', doneAction=None)
             plot_3d.figure.set_size_inches(16, 16)
             plt.tight_layout()
             plot_3d.figure.show()
+            return plot_3d.figure
+
         elif plot_type == 6:
             from music21.graph.plot import WindowedKey
             wk = WindowedKey(self._score.measures(start, end), doneAction=None)
             wk.run()
             wk.figure.show()
+            return wk.figure
+
+        return None
 
     def _on_save_png(self):
         if self._current_fig is None:
