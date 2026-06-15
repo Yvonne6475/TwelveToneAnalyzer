@@ -17,6 +17,7 @@ from src.core.score_analyzer import (
 )
 from src.ui.widgets.score_opener import setup_open_menu
 from src.utils.i18n import tr
+from src.utils.config import show_score
 
 
 class AnnotatedScoreTab(QWidget):
@@ -94,11 +95,19 @@ class AnnotatedScoreTab(QWidget):
         self._btn_preview.clicked.connect(self._on_preview)
         btn_row.addWidget(self._btn_preview)
 
-        self._btn_export = QPushButton(tr("dialog.export_do_export"))
-        self._btn_export.setProperty("accent", "green")
-        self._btn_export.setEnabled(False)
-        self._btn_export.clicked.connect(self._on_export)
-        btn_row.addWidget(self._btn_export)
+        self._btn_export_xml = QPushButton(tr("dialog.export_xml"))
+        self._btn_export_xml.setProperty("accent", "green")
+        self._btn_export_xml.setEnabled(False)
+        self._btn_export_xml.setToolTip(tr("dialog.export_xml"))
+        self._btn_export_xml.clicked.connect(self._on_export_xml)
+        btn_row.addWidget(self._btn_export_xml)
+
+        self._btn_export_pdf = QPushButton(tr("dialog.export_pdf"))
+        self._btn_export_pdf.setProperty("accent", "orange")
+        self._btn_export_pdf.setEnabled(False)
+        self._btn_export_pdf.setToolTip(tr("dialog.export_pdf"))
+        self._btn_export_pdf.clicked.connect(self._on_export_pdf)
+        btn_row.addWidget(self._btn_export_pdf)
 
         btn_row.addStretch()
         layout.addLayout(btn_row)
@@ -136,7 +145,8 @@ class AnnotatedScoreTab(QWidget):
             self._range_group.setVisible(True)
 
         self._btn_preview.setEnabled(True)
-        self._btn_export.setEnabled(True)
+        self._btn_export_xml.setEnabled(True)
+        self._btn_export_pdf.setEnabled(True)
 
     def _validate(self) -> bool:
         if self._is_mei:
@@ -155,24 +165,12 @@ class AnnotatedScoreTab(QWidget):
         if not self._validate():
             return
         try:
-            if self._is_mei:
-                if self._chk_strip.isChecked():
-                    strip_annotations(self._score)
-                _add_pc_forte_lyrics(self._score)
-                excerpt = self._score
-            else:
-                excerpt = self._score.measures(
-                    self._spin_start.value(),
-                    self._spin_end.value()
-                )
-                if self._chk_strip.isChecked():
-                    strip_annotations(excerpt)
-                _add_pc_forte_lyrics(excerpt)
-            excerpt.show()
+            excerpt = self._prepare_excerpt()
+            show_score(excerpt)
         except Exception as e:
             QMessageBox.critical(self, tr("overview.plot_error"), str(e))
 
-    def _on_export(self):
+    def _on_export_xml(self):
         if not self._validate():
             return
         output_dir = QFileDialog.getExistingDirectory(
@@ -181,21 +179,7 @@ class AnnotatedScoreTab(QWidget):
         if not output_dir:
             return
         try:
-
-            if self._is_mei:
-                # MEI: work on full score (measures not supported)
-                if self._chk_strip.isChecked():
-                    strip_annotations(self._score)
-                _add_pc_forte_lyrics(self._score)
-                excerpt = self._score
-            else:
-                excerpt = self._score.measures(
-                    self._spin_start.value(),
-                    self._spin_end.value()
-                )
-                if self._chk_strip.isChecked():
-                    strip_annotations(excerpt)
-                _add_pc_forte_lyrics(excerpt)
+            excerpt = self._prepare_excerpt()
 
             piece_name = Path(self._score_path).stem if self._score_path else "analysis"
             date_str = datetime.now().strftime("%Y%m%d")
@@ -208,25 +192,64 @@ class AnnotatedScoreTab(QWidget):
                 base = f"{piece_name}_m{start}-{end}_pc_forte_{date_str}"
 
             xml_path = os.path.join(output_dir, f"{base}.musicxml")
-            pdf_path = os.path.join(output_dir, f"{base}.pdf")
-
             excerpt.write('musicxml', xml_path)
 
             if self._chk_strip.isChecked():
                 clean_xml_presentation(xml_path)
 
-            try:
-                excerpt.write('musicxml.pdf', pdf_path)
-            except Exception:
-                pass
-
-            excerpt.show()
-
-            pdf_ok = os.path.exists(pdf_path)
-            msg = tr("dialog.export_annotated_msg",
-                     xml=xml_path,
-                     pdf=pdf_path if pdf_ok else "N/A")
-            QMessageBox.information(self, tr("dialog.export_complete"), msg)
+            QMessageBox.information(self, tr("dialog.export_complete"),
+                                    tr("dialog.export_xml_msg", xml=xml_path))
 
         except Exception as e:
             QMessageBox.critical(self, tr("overview.export_failed"), str(e))
+
+    def _on_export_pdf(self):
+        if not self._validate():
+            return
+        output_dir = QFileDialog.getExistingDirectory(
+            self, tr("dialog.export_range_title"), ""
+        )
+        if not output_dir:
+            return
+        try:
+            excerpt = self._prepare_excerpt()
+
+            piece_name = Path(self._score_path).stem if self._score_path else "analysis"
+            date_str = datetime.now().strftime("%Y%m%d")
+
+            if self._is_mei:
+                base = f"{piece_name}_full_pc_forte_{date_str}"
+            else:
+                start = self._spin_start.value()
+                end = self._spin_end.value()
+                base = f"{piece_name}_m{start}-{end}_pc_forte_{date_str}"
+
+            pdf_path = os.path.join(output_dir, f"{base}.pdf")
+            excerpt.write('musicxml.pdf', pdf_path)
+
+            if os.path.exists(pdf_path):
+                QMessageBox.information(self, tr("dialog.export_complete"),
+                                        tr("dialog.export_pdf_msg", pdf=pdf_path))
+            else:
+                QMessageBox.warning(self, tr("overview.export_failed"),
+                                    tr("dialog.export_pdf_failed"))
+
+        except Exception as e:
+            QMessageBox.critical(self, tr("overview.export_failed"), str(e))
+
+    def _prepare_excerpt(self):
+        """Build the annotated excerpt — shared by preview, XML, and PDF export."""
+        if self._is_mei:
+            if self._chk_strip.isChecked():
+                strip_annotations(self._score)
+            _add_pc_forte_lyrics(self._score)
+            return self._score
+        else:
+            excerpt = self._score.measures(
+                self._spin_start.value(),
+                self._spin_end.value()
+            )
+            if self._chk_strip.isChecked():
+                strip_annotations(excerpt)
+            _add_pc_forte_lyrics(excerpt)
+            return excerpt

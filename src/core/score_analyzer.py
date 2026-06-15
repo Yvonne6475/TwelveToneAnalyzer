@@ -350,6 +350,7 @@ def export_annotated_score(score, score_path: str, output_dir: str,
     import os
     from pathlib import Path
     from datetime import datetime
+    from src.utils.config import show_score
 
     os.makedirs(output_dir, exist_ok=True)
     excerpt = annotate_score(score, start_measure, end_measure)
@@ -367,7 +368,7 @@ def export_annotated_score(score, score_path: str, output_dir: str,
     except Exception:
         pass  # PDF export requires MuseScore
 
-    excerpt.show()
+    show_score(excerpt)
 
     from PyQt5.QtWidgets import QMessageBox
     from src.utils.i18n import tr

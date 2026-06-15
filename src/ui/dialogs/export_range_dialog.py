@@ -12,6 +12,7 @@ from PyQt5.QtCore import Qt
 
 from src.core.score_analyzer import annotate_score
 from src.utils.i18n import tr
+from src.utils.config import show_score
 
 
 class ExportAnnotatedDialog(QDialog):
@@ -92,7 +93,7 @@ class ExportAnnotatedDialog(QDialog):
                 self._spin_start.value(),
                 self._spin_end.value()
             )
-            excerpt.show()
+            show_score(excerpt)
         except Exception as e:
             QMessageBox.critical(self, tr("overview.plot_error"), str(e))
 
@@ -123,7 +124,7 @@ class ExportAnnotatedDialog(QDialog):
             except Exception:
                 pass  # PDF requires MuseScore
 
-            excerpt.show()
+            show_score(excerpt)
 
             pdf_ok = os.path.exists(pdf_path)
             msg = tr("dialog.export_annotated_msg",

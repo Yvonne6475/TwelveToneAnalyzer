@@ -90,3 +90,40 @@ def _auto_detect_musescore() -> str | None:
         if os.path.isfile(p):
             return p
     return None
+
+
+def show_score(stream, fmt='musicxml', parent=None):
+    """Show a music21 Stream in MuseScore (or system default handler).
+
+    Replaces stream.show() which uses subprocess.run(['open', ...]) —
+    unreliable inside PyInstaller-frozen macOS apps.
+
+    Writes the stream to a temp file, then opens it with the configured
+    MuseScore (if available) or the system default application.
+    """
+    import subprocess
+    import tempfile
+    from PyQt5.QtCore import QUrl
+    from PyQt5.QtGui import QDesktopServices
+
+    ms_path = get_musescore_path()
+    temp_dir = get_temp_dir()
+    os.makedirs(temp_dir, exist_ok=True)
+
+    fd, tmp_path = tempfile.mkstemp(suffix='.musicxml', dir=temp_dir)
+    os.close(fd)
+
+    try:
+        stream.write(fmt, tmp_path)
+    except Exception:
+        os.remove(tmp_path)
+        raise
+
+    if ms_path and os.path.isfile(ms_path):
+        # Open directly with configured MuseScore
+        try:
+            subprocess.Popen([ms_path, tmp_path])
+        except Exception:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(tmp_path))
+    else:
+        QDesktopServices.openUrl(QUrl.fromLocalFile(tmp_path))

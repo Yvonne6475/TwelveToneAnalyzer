@@ -9,14 +9,39 @@ from pathlib import Path
 # music21 uses inspect.getfile() + .parent.parent to locate its corpus
 # directory, which resolves incorrectly inside a frozen app. Set the
 # manualCoreCorpusPath to point to the bundled corpus data instead.
+#
+# On macOS, PyInstaller puts data files in Contents/Resources/ and creates
+# symlinks from Contents/MacOS/ → ../Resources/.  Python's pathlib.rglob
+# does NOT follow directory symlinks, so music21's corpus.getPaths()
+# would find zero files when pointed at a path whose subdirs are symlinks.
+#
+# Strategy: try the MacOS path first (where _MEIPASS / sys.executable
+# point), then fall back to the Resources sibling directory which contains
+# the real (non-symlink) corpus tree.
 if getattr(sys, 'frozen', False):
     _bundle_dir = Path(getattr(sys, '_MEIPASS', Path(sys.executable).parent))
     _corpus_path = _bundle_dir / 'music21' / 'corpus'
-    # PyInstaller macOS bundles symlink corpus subdirs → Contents/Resources/.
-    # Python's pathlib.rglob does NOT follow directory symlinks, so music21's
-    # corpus.getPaths() → _findPaths() finds zero files.  Resolve to the real
-    # path so the recursive glob works.
+
+    # Resolve to real path — handles the case where _bundle_dir itself
+    # is a symlink, or where the entire corpus dir is a symlink.
     _corpus_path = _corpus_path.resolve()
+
+    # If the resolved path's data subdirs are still symlinks (PyInstaller
+    # macOS creates per-subdir symlinks), look for the Resources copy.
+    if _corpus_path.is_dir():
+        _test_subdir = next((d for d in _corpus_path.iterdir()
+                            if d.is_dir() and not d.name.startswith('_')
+                            and not d.name.startswith('.')), None)
+        if _test_subdir is not None and _test_subdir.is_symlink():
+            # Subdirs are symlinks → find the real corpus under Resources/
+            _resources = _bundle_dir.parent / 'Resources' / 'music21' / 'corpus'
+            if _resources.is_dir():
+                _corpus_path = _resources.resolve()
+            # Also try relative to executable: Contents/MacOS/../Resources/
+            _alt_resources = Path(sys.executable).parent.parent / 'Resources' / 'music21' / 'corpus'
+            if not _corpus_path.is_dir() and _alt_resources.is_dir():
+                _corpus_path = _alt_resources.resolve()
+
     if _corpus_path.is_dir():
         # Pre-import music21 environment and set the path before any
         # other music21 imports happen

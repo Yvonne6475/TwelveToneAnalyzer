@@ -134,7 +134,11 @@ TRANSLATIONS = {
     "dialog.export_range_title": {"zh": "导出带标注乐谱", "en": "Export Annotated Score"},
     "dialog.export_range_label": {"zh": "小节范围: {min} – {max}", "en": "Measure range: {min} – {max}"},
     "dialog.export_preview": {"zh": "预览标注乐谱", "en": "Preview Annotated Score"},
-    "dialog.export_do_export": {"zh": "导出 MusicXML + PDF", "en": "Export MusicXML + PDF"},
+    "dialog.export_xml": {"zh": "导出 MusicXML", "en": "Export MusicXML"},
+    "dialog.export_pdf": {"zh": "导出 PDF", "en": "Export PDF"},
+    "dialog.export_xml_msg": {"zh": "MusicXML 已导出:\n{xml}", "en": "MusicXML exported:\n{xml}"},
+    "dialog.export_pdf_failed": {"zh": "PDF 导出失败。请确认 MuseScore 4 已安装。\nMuseScore 可以在 musescore.org 免费下载。", "en": "PDF export failed. Please ensure MuseScore 4 is installed.\nMuseScore is available for free at musescore.org."},
+    "dialog.export_pdf_msg": {"zh": "PDF 已导出:\n{pdf}", "en": "PDF exported:\n{pdf}"},
 
     # About
     "about.title": {"zh": "关于", "en": "About"},

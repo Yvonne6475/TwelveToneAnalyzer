@@ -20,6 +20,7 @@ from src.ui.widgets.score_opener import setup_open_menu
 from src.ui.widgets.matrix_widget import MatrixWidget
 from src.ui.widgets.collapsible_panel import CollapsiblePanel
 from src.utils.i18n import tr
+from src.utils.config import show_score
 from src.ui.theme import default_save_path, matrix_text_stylesheet, monospace_font_family
 
 
@@ -442,7 +443,7 @@ class TwelveToneTab(QWidget):
             return
         try:
             s = make_group_stream(self._last_groups)
-            s.show()
+            show_score(s)
         except Exception as e:
             QMessageBox.critical(self, tr("overview.plot_error"), str(e))
 

@@ -13,6 +13,7 @@ from src.core.score_analyzer import diagnose_all_parts, get_measure_range
 from src.ui.widgets.score_opener import setup_open_menu
 from src.utils.i18n import tr, tr_list
 from src.ui.theme import default_save_path
+from src.utils.config import show_score
 
 
 def _guess_hand(part) -> str:
@@ -273,7 +274,7 @@ class ChordTab(QWidget):
             for i, part in enumerate(self._score.parts):
                 if i in part_indices:
                     excerpt.insert(0, part.measures(start, end))
-            excerpt.show()
+            show_score(excerpt)
         except Exception as e:
             QMessageBox.critical(self, tr("overview.plot_error"), str(e))
 
