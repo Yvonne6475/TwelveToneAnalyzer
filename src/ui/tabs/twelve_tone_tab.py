@@ -110,17 +110,28 @@ class TwelveToneTab(QWidget):
         self._matrix_scroll.setMinimumHeight(300)
         matrix_layout.addWidget(self._matrix_scroll, 1)
 
-        # Numeric matrix — use an explicit monospace QFont (Qt CSS font-family
-        # on QTextEdit doesn't reliably apply to the QTextDocument).
+        # Numeric matrix — must use a true monospace font for column alignment.
+        # Qt CSS font-family on QTextEdit doesn't reliably set the document's
+        # default font, so we use setFont() with an explicit QFont.
         self._matrix_numeric = QTextEdit()
         self._matrix_numeric.setReadOnly(True)
         self._matrix_numeric.setMinimumHeight(150)
         self._matrix_numeric.setLineWrapMode(QTextEdit.NoWrap)
         _family_str = monospace_font_family().replace('"', '').split(",")[0].strip()
         _mono_font = QFont(_family_str)
-        _mono_font.setPointSize(14)
+        _mono_font.setPointSize(13)
+        _mono_font.setStyleHint(QFont.Monospace)
         self._matrix_numeric.setFont(_mono_font)
-        self._matrix_numeric.setStyleSheet(matrix_text_stylesheet(19))
+        self._matrix_numeric.document().setDefaultFont(_mono_font)
+        # Apply color/background separately (no font-family override)
+        self._matrix_numeric.setStyleSheet(
+            "QTextEdit {"
+            "background-color: #fefdfb;"
+            "color: #2c2c2c;"
+            "selection-background-color: #d4c8b0;"
+            "selection-color: #2c2c2c;"
+            "}"
+        )
         matrix_layout.addWidget(self._matrix_numeric)
 
         self._matrix_scroll_container.setWidget(matrix_group)
