@@ -75,16 +75,21 @@ class TwelveToneTab(QWidget):
 
         layout.addWidget(extract_group)
 
-        # ── Forms display — large font, scrollable ────────────────────
+        # ── Forms display — auto-scale font, scrollable ───────────────
         forms_group = QGroupBox(tr("tt.forms_group"))
         forms_layout = QVBoxLayout(forms_group)
         self._forms_text = QTextEdit()
         self._forms_text.setReadOnly(True)
         self._forms_text.setMinimumHeight(180)
+        # Monospace font for forms
+        self._forms_font = QFont(self._matrix_font_family if hasattr(self, '_matrix_font_family') else 'Consolas')
+        self._forms_font.setStyleHint(QFont.Monospace)
+        self._forms_text.setFont(self._forms_font)
+        self._forms_text.document().setDefaultFont(self._forms_font)
         self._forms_text.setStyleSheet(
-            "font-family: Consolas, monospace; font-size: 16px;"
-            "background-color: #fefdfb; color: #2c2c2c;"
+            "QTextEdit { background-color: #fefdfb; color: #2c2c2c; }"
         )
+        self._forms_text.installEventFilter(self)
         forms_layout.addWidget(self._forms_text)
         layout.addWidget(forms_group)
 
@@ -105,10 +110,11 @@ class TwelveToneTab(QWidget):
         self._matrix_numeric.setReadOnly(True)
         self._matrix_numeric.setMinimumHeight(200)
         self._matrix_numeric.setLineWrapMode(QTextEdit.NoWrap)
-        # Monospace font family (platform-adaptive)
-        self._matrix_font_family = monospace_font_family().replace('"', '').split(",")[0].strip()
-        # Start with a large default; resizeEvent will refine
-        self._matrix_font = QFont(self._matrix_font_family)
+        # Monospace font for matrix — fixed 20pt
+        _family_str = monospace_font_family().replace('"', '').split(",")[0].strip()
+        self._matrix_font_family = _family_str
+        self._matrix_font = QFont(_family_str)
+        self._matrix_font.setPointSize(20)
         self._matrix_font.setStyleHint(QFont.Monospace)
         self._matrix_numeric.setFont(self._matrix_font)
         self._matrix_numeric.document().setDefaultFont(self._matrix_font)
@@ -120,8 +126,6 @@ class TwelveToneTab(QWidget):
             "selection-color: #2c2c2c;"
             "}"
         )
-        # Install resize event to auto-scale font
-        self._matrix_numeric.installEventFilter(self)
         matrix_layout.addWidget(self._matrix_numeric)
 
         layout.addWidget(matrix_group, 6)
@@ -211,14 +215,13 @@ class TwelveToneTab(QWidget):
     # ── Dynamic font sizing for matrix ─────────────────────────
     def eventFilter(self, obj, event):
         from PyQt5.QtCore import QEvent
-        if obj is self._matrix_numeric and event.type() == QEvent.Resize:
-            w = self._matrix_numeric.viewport().width()
-            # Matrix: ~82 monospace chars wide.  char_px ≈ pt * 0.62
-            pt = max(14, min(32, int(w / 52)))
-            if self._matrix_font.pointSize() != pt:
-                self._matrix_font.setPointSize(pt)
-                self._matrix_numeric.setFont(self._matrix_font)
-                self._matrix_numeric.document().setDefaultFont(self._matrix_font)
+        if event.type() == QEvent.Resize and obj is self._forms_text:
+            w = self._forms_text.viewport().width()
+            pt = max(12, min(28, int(w / 28)))
+            if self._forms_font.pointSize() != pt:
+                self._forms_font.setPointSize(pt)
+                self._forms_text.setFont(self._forms_font)
+                self._forms_text.document().setDefaultFont(self._forms_font)
         return super().eventFilter(obj, event)
 
     # ── Collapsible panel toggle ────────────────────────────────
