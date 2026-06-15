@@ -1,0 +1,113 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  # ── macOS .app + .dmg ──────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements_mac.txt
+
+      - name: Extract version
+        id: ver
+        run: |
+          V=$(python -c "from src.core.updater import VERSION; print(VERSION)")
+          echo "version=$V" >> $GITHUB_OUTPUT
+
+      - name: Build .app
+        run: pyinstaller TwelveToneAnalyzer_mac.spec
+
+      - name: Package DMG
+        run: |
+          cp -R dist/TwelveToneAnalyzer.app dist/dmg_staging/
+          ln -s /Applications dist/dmg_staging/Applications
+          hdiutil create \
+            -volname "TwelveToneAnalyzer" \
+            -srcfolder dist/dmg_staging \
+            -ov -format UDZO \
+            "dist/TwelveToneAnalyzer_Setup_v${{ steps.ver.outputs.version }}.dmg"
+          rm -rf dist/dmg_staging
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macOS-DMG
+          path: dist/TwelveToneAnalyzer_Setup_v*.dmg
+          retention-days: 7
+
+  # ── Windows .exe + NSIS installer ──────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller==5.13.2
+          pip install -r requirements.txt
+
+      - name: Extract version
+        id: ver
+        shell: bash
+        run: |
+          V=$(python -c "from src.core.updater import VERSION; print(VERSION)")
+          echo "version=$V" >> $GITHUB_OUTPUT
+
+      - name: Build .exe
+        run: pyinstaller TwelveToneAnalyzer.spec
+
+      - name: Build NSIS installer
+        shell: bash
+        run: |
+          makensis /DVERSION="${{ steps.ver.outputs.version }}" installer.nsi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-EXE
+          path: dist/TwelveToneAnalyzer_Setup_v*.exe
+          retention-days: 7
+
+  # ── GitHub Release (only on tag) ───────────────────────────────
+  release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: macOS-DMG
+          path: artifacts/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-EXE
+          path: artifacts/
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
