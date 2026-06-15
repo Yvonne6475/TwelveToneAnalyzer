@@ -104,8 +104,11 @@ class TwelveToneTab(QWidget):
         matrix_group = QGroupBox(tr("tt.matrix_group"))
         matrix_layout = QVBoxLayout(matrix_group)
 
-        # Numeric matrix — uses music21.serial.TwelveToneRow.matrix()
-        # True monospace font via QFont for reliable column alignment
+        # Scrollable container for numeric matrix
+        matrix_scroll = QScrollArea()
+        matrix_scroll.setWidgetResizable(True)
+        matrix_scroll.setMaximumHeight(340)
+
         self._matrix_numeric = QTextEdit()
         self._matrix_numeric.setReadOnly(True)
         self._matrix_numeric.setMinimumHeight(200)
@@ -126,9 +129,10 @@ class TwelveToneTab(QWidget):
             "selection-color: #2c2c2c;"
             "}"
         )
-        matrix_layout.addWidget(self._matrix_numeric)
+        matrix_scroll.setWidget(self._matrix_numeric)
+        matrix_layout.addWidget(matrix_scroll)
 
-        layout.addWidget(matrix_group, 6)
+        layout.addWidget(matrix_group, 4)
 
         # ═══════════════════════════════════════════════════════════════
         # Row Grouping — reusable CollapsiblePanel (cross-platform)
