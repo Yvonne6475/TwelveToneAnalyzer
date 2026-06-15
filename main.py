@@ -92,8 +92,12 @@ def main():
     app.setApplicationName("Twelve-Tone Music Analyzer")
     app.setOrganizationName("MusicAnalysis")
 
-    # Set default font
-    font = QFont("Segoe UI", 10)
+    # Set default font — use system-native font per platform.
+    # Segoe UI is Windows-only; on macOS it triggers a costly fallback.
+    if sys.platform == "win32":
+        font = QFont("Segoe UI", 10)
+    else:
+        font = QFont("Helvetica Neue", 11)
     font.setStyleStrategy(QFont.PreferAntialias)
     app.setFont(font)
 
