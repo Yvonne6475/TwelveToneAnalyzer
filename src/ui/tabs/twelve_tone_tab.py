@@ -105,13 +105,13 @@ class TwelveToneTab(QWidget):
         self._matrix_numeric.setReadOnly(True)
         self._matrix_numeric.setMinimumHeight(200)
         self._matrix_numeric.setLineWrapMode(QTextEdit.NoWrap)
-        _family_str = monospace_font_family().replace('"', '').split(",")[0].strip()
-        _mono_font = QFont(_family_str)
-        _mono_font.setPointSize(16)
-        _mono_font.setStyleHint(QFont.Monospace)
-        self._matrix_numeric.setFont(_mono_font)
-        self._matrix_numeric.document().setDefaultFont(_mono_font)
-        # Apply color/background separately (no font-family override)
+        # Monospace font family (platform-adaptive)
+        self._matrix_font_family = monospace_font_family().replace('"', '').split(",")[0].strip()
+        # Start with a large default; resizeEvent will refine
+        self._matrix_font = QFont(self._matrix_font_family)
+        self._matrix_font.setStyleHint(QFont.Monospace)
+        self._matrix_numeric.setFont(self._matrix_font)
+        self._matrix_numeric.document().setDefaultFont(self._matrix_font)
         self._matrix_numeric.setStyleSheet(
             "QTextEdit {"
             "background-color: #fefdfb;"
@@ -120,6 +120,8 @@ class TwelveToneTab(QWidget):
             "selection-color: #2c2c2c;"
             "}"
         )
+        # Install resize event to auto-scale font
+        self._matrix_numeric.installEventFilter(self)
         matrix_layout.addWidget(self._matrix_numeric)
 
         layout.addWidget(matrix_group, 6)
@@ -205,6 +207,19 @@ class TwelveToneTab(QWidget):
         export_row.addWidget(self._btn_export_heatmap)
 
         layout.addLayout(export_row)
+
+    # ── Dynamic font sizing for matrix ─────────────────────────
+    def eventFilter(self, obj, event):
+        from PyQt5.QtCore import QEvent
+        if obj is self._matrix_numeric and event.type() == QEvent.Resize:
+            w = self._matrix_numeric.viewport().width()
+            # Matrix: ~82 monospace chars wide.  char_px ≈ pt * 0.62
+            pt = max(14, min(32, int(w / 52)))
+            if self._matrix_font.pointSize() != pt:
+                self._matrix_font.setPointSize(pt)
+                self._matrix_numeric.setFont(self._matrix_font)
+                self._matrix_numeric.document().setDefaultFont(self._matrix_font)
+        return super().eventFilter(obj, event)
 
     # ── Collapsible panel toggle ────────────────────────────────
     def _on_panel_toggled(self, visible: bool):
