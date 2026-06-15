@@ -326,21 +326,31 @@ class TwelveToneTab(QWidget):
 
         lines = []
 
+        # Pitch-class display: 0-9 as numbers, 10→A, 11→B (music21 native)
+        _PC_NAMES = [' 0',' 1',' 2',' 3',' 4',' 5',' 6',' 7',' 8',' 9',' A',' B']
+
         def _pc_label(pc):
-            return f"{pc:>2d}"
+            return _PC_NAMES[pc % 12]
 
         def _edge(letter, pc):
-            return f"{letter}{pc:>2d}"
+            v = pc % 12
+            if v == 10:
+                s = 'A'
+            elif v == 11:
+                s = 'B'
+            else:
+                s = str(v)
+            return f"{letter}{s:>2}"
 
         COL_GAP = "  "
         PAD = " " * 6
 
         # Data rows — all 12 rows use I label on left, R label on right
         for i, r in enumerate(matrix):
-            prefix = f" I{r[0]:>2d}"
+            prefix = _edge("I", r[0])
             suffix = _edge("R", r[-1])
-            row_text = COL_GAP.join(_pc_label(v) for v in r)
-            lines.append(f"{prefix}  {row_text}  {suffix}")
+            cells = COL_GAP.join(f"{_pc_label(v):>4}" for v in r)
+            lines.append(f"{prefix}  {cells}  {suffix}")
 
         # RI footer row
         ri_labels = [_edge("RI", matrix[-1][j]) for j in range(12)]
