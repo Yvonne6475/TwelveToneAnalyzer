@@ -94,6 +94,7 @@ class LatticeTab(QWidget):
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(False)
         self._scroll_area.setWidget(self._canvas)
+        self._scroll_area.setStyleSheet("QScrollArea { background-color: #fefdfb; border: none; }")
         layout.addWidget(self._scroll_area, 1)
 
         # Quick-action: extract from twelve-tone row or chord analysis
