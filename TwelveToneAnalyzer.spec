@@ -89,7 +89,6 @@ a = Analysis(
         'PyQt5.QAxContainer',
     ],
     noarchive=False,
-    optimize=0,
 )
 pyz = PYZ(a.pure)
 
