@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
     QMessageBox, QFileDialog, QScrollArea,
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
 
 from src.core.twelve_tone import (
     generate_forms, generate_matrix, make_row_stream,
@@ -19,7 +20,7 @@ from src.ui.widgets.score_opener import setup_open_menu
 from src.ui.widgets.matrix_widget import MatrixWidget
 from src.ui.widgets.collapsible_panel import CollapsiblePanel
 from src.utils.i18n import tr
-from src.ui.theme import default_save_path, matrix_text_stylesheet
+from src.ui.theme import default_save_path, matrix_text_stylesheet, monospace_font_family
 
 
 class TwelveToneTab(QWidget):
@@ -109,11 +110,16 @@ class TwelveToneTab(QWidget):
         self._matrix_scroll.setMinimumHeight(300)
         matrix_layout.addWidget(self._matrix_scroll, 1)
 
-        # Numeric matrix — no horizontal wrapping (each row stays on one line)
+        # Numeric matrix — use an explicit monospace QFont (Qt CSS font-family
+        # on QTextEdit doesn't reliably apply to the QTextDocument).
         self._matrix_numeric = QTextEdit()
         self._matrix_numeric.setReadOnly(True)
         self._matrix_numeric.setMinimumHeight(150)
         self._matrix_numeric.setLineWrapMode(QTextEdit.NoWrap)
+        _family_str = monospace_font_family().replace('"', '').split(",")[0].strip()
+        _mono_font = QFont(_family_str)
+        _mono_font.setPointSize(14)
+        self._matrix_numeric.setFont(_mono_font)
         self._matrix_numeric.setStyleSheet(matrix_text_stylesheet(19))
         matrix_layout.addWidget(self._matrix_numeric)
 
