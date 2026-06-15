@@ -74,6 +74,19 @@ jobs:
       - name: Build .exe
         run: pyinstaller TwelveToneAnalyzer.spec
 
+      - name: Create app.zip for NSIS
+        shell: bash
+        run: |
+          cd dist/TwelveToneAnalyzer
+          7z a -mx=0 -tzip ../app.zip *
+          cd ../..
+
+      - name: Install NSIS
+        shell: bash
+        run: |
+          choco install nsis -y 2>&1 | tail -3
+          echo "$PROGRAMFILES/NSIS" >> $GITHUB_PATH
+
       - name: Build NSIS installer
         shell: bash
         run: |
