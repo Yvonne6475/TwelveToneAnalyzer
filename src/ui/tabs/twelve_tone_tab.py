@@ -104,11 +104,12 @@ class TwelveToneTab(QWidget):
         # ═══════════════════════════════════════════════════════════════
         matrix_group = QGroupBox(tr("tt.matrix_group"))
         matrix_layout = QVBoxLayout(matrix_group)
+        matrix_layout.setContentsMargins(4, 2, 4, 4)
 
         # Scrollable container for numeric matrix
         matrix_scroll = QScrollArea()
         matrix_scroll.setWidgetResizable(True)
-        matrix_scroll.setMaximumHeight(380)
+        matrix_scroll.setMaximumHeight(410)
         matrix_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
 
         self._matrix_numeric = QTextEdit()
