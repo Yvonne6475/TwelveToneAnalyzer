@@ -171,6 +171,7 @@ class VisualizationTab(QWidget):
             if not notes:
                 plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center',
                          transform=plt.gca().transAxes)
+                plt.show(block=False)
                 return plt.gcf()
             pcs = [n[0] for n in notes]
             plt.hist(pcs, bins=12, range=(-0.5, 11.5), color='steelblue', edgecolor='white')
@@ -178,6 +179,7 @@ class VisualizationTab(QWidget):
             plt.ylabel('Count')
             plt.title('Pitch Class Histogram')
             plt.xticks(range(12))
+            plt.show(block=False)
             return plt.gcf()
 
         elif plot_type == 3:
@@ -186,6 +188,7 @@ class VisualizationTab(QWidget):
             if not notes:
                 plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center',
                          transform=plt.gca().transAxes)
+                plt.show(block=False)
                 return plt.gcf()
             measures = [n[2] for n in notes]
             pcs = [n[0] for n in notes]
@@ -194,14 +197,18 @@ class VisualizationTab(QWidget):
             plt.ylabel('Pitch Class')
             plt.yticks(range(12))
             plt.title('Pitch Class by Measure')
+            plt.show(block=False)
             return plt.gcf()
 
         elif plot_type == 4:
             # Horizontal bar — duration-weighted pitch class
-            notes = self._extract_notes(src, part_idx)
+            _stream = self._midi_score if self._midi_score else self._score
+            _src = _stream.measures(start, end) if _stream != self._score else src
+            notes = self._extract_notes(_src, part_idx)
             if not notes:
                 plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center',
                          transform=plt.gca().transAxes)
+                plt.show(block=False)
                 return plt.gcf()
             weights = [0.0] * 12
             for pc, dur, _m in notes:
@@ -211,6 +218,7 @@ class VisualizationTab(QWidget):
             plt.xlabel('Total Duration (quarterLength)')
             plt.ylabel('Pitch Class')
             plt.title('Duration-Weighted Pitch Class')
+            plt.show(block=False)
             return plt.gcf()
 
         # ── music21-powered charts ──────────────────────────────────
