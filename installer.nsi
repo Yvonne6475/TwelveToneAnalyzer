@@ -16,15 +16,13 @@ XPStyle on
 ; (5) Disable per-file CRC verification
 CRCCheck off
 
-; (2) LZMA: small dict = fast decompress; zip already handles per-file compression
+; (2) Non-solid LZMA: allows SetCompress off for the zip (raw copy = instant)
 !ifdef RELEASE
-    SetCompressor /SOLID lzma
-    SetCompressorDictSize 8
-    !define COMPRESS_MODE "Release (solid lzma 8MB dict + zip extract)"
+    SetCompressor lzma
+    !define COMPRESS_MODE "Release (lzma + zip raw copy)"
 !else
-    SetCompressor /SOLID lzma
-    SetCompressorDictSize 8
-    !define COMPRESS_MODE "Debug (solid lzma 8MB dict)"
+    SetCompressor lzma
+    !define COMPRESS_MODE "Debug (lzma)"
 !endif
 
 ; (1) Admin rights + locked-file retry
@@ -85,15 +83,18 @@ Function .onInit
   !endif
 FunctionEnd
 
-; (4) Install: zip-extract for fast single-pass installation
+; (4) Install: store zip uncompressed (raw copy, skip LZMA decompression)
 Section "Install"
   CreateDirectory "$INSTDIR"
   SetOutPath "$INSTDIR"
 
   DetailPrint "Extracting application files..."
+  ; app.zip is already compressed — disable NSIS LZMA so it copies raw (instant)
+  SetCompress off
   File /oname=$INSTDIR\${ZIP_NAME} "dist\${ZIP_NAME}"
-  ; .NET ZipFile — much faster than Expand-Archive (no per-file progress overhead)
-  nsExec::ExecToLog 'powershell -NoProfile -Command "[System.IO.Compression.ZipFile]::ExtractToDirectory(\"$INSTDIR\${ZIP_NAME}\", \"$INSTDIR\", \$true)"'
+  SetCompress auto
+  ; .NET ZipFile — native speed, no per-file overhead
+  nsExec::ExecToLog "powershell -NoProfile -Command \"[System.IO.Compression.ZipFile]::ExtractToDirectory('$INSTDIR\${ZIP_NAME}', '$INSTDIR', $$true)\""
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONSTOP "Extraction failed (code $0).$\nPlease try reinstalling or contact support."
