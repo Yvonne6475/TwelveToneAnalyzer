@@ -107,7 +107,7 @@ class TwelveToneTab(QWidget):
         self._matrix_numeric.setLineWrapMode(QTextEdit.NoWrap)
         _family_str = monospace_font_family().replace('"', '').split(",")[0].strip()
         _mono_font = QFont(_family_str)
-        _mono_font.setPointSize(13)
+        _mono_font.setPointSize(16)
         _mono_font.setStyleHint(QFont.Monospace)
         self._matrix_numeric.setFont(_mono_font)
         self._matrix_numeric.document().setDefaultFont(_mono_font)
