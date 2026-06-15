@@ -3,179 +3,150 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 REM ============================================================
-REM   TwelveToneAnalyzer — Build Script
-REM
-REM   Optimized: uses .spec files instead of raw CLI flags.
-REM   All PyInstaller configuration is now in:
-REM     - TwelveToneAnalyzer.spec        (release)
-REM     - TwelveToneAnalyzer_debug.spec  (debug)
+REM   TwelveToneAnalyzer — Optimized Build Script
 REM
 REM   【用法】
-REM     build.bat               → 发布打包 (全量清理, ~5分钟)
-REM     build.bat debug         → 调试打包 (全量清理, 弹出控制台)
-REM     build.bat quick         → 快速增量打包 (不改依赖时用, ~30秒)
-REM     build.bat quick debug   → 快速增量调试打包
+REM     build.bat               → Quick build (~1min, 增量)
+REM     build.bat full          → Full clean build (~5min)
+REM     build.bat debug         → Debug build (console)
+REM     build.bat installer     → Quick build + NSIS installer
+REM     build.bat release       → Full build + NSIS release installer
 REM ============================================================
 
-REM ============================================================
-REM  1. Force use of project .venv Python/PyInstaller
-REM ============================================================
 set VENV=.venv
 set PYTHON=%VENV%\Scripts\python.exe
 set APP_NAME=TwelveToneAnalyzer
 set DIST_DIR=dist
+set BUILD_DIR=build
 
-if not exist "%PYTHON%" (
-    echo ============================================================
-    echo  [ERROR] Virtual environment not found: .venv\Scripts\python.exe
-    echo  ─────────────────────────────────────────────────────────
-    echo  Please run the following commands in the project root:
-    echo    python -m venv .venv
-    echo    .venv\Scripts\activate
-    echo    pip install -r requirements.txt
-    echo  ─────────────────────────────────────────────────────────
-    echo  Then re-run build.bat
-    echo ============================================================
-    pause
-    exit /b 1
-)
-echo [INFO] Virtual env: %VENV%
-echo [INFO] Python:      %PYTHON%
-
-REM Ensure PyInstaller is installed in .venv
-%PYTHON% -c "import PyInstaller" 2>nul || (
-    echo [INFO] Installing PyInstaller to .venv...
-    %PYTHON% -m pip install pyinstaller -q
-    if !ERRORLEVEL! neq 0 (
-        echo [ERROR] Failed to install PyInstaller
-        pause & exit /b 1
-    )
-)
-
-REM ============================================================
-REM  2. Select build mode — first arg: [quick] [debug]
-REM ============================================================
+REM ── Parse args ────────────────────────────────────────────
 set MODE=%1
 set MODE2=%2
-set CLEAN_FLAG=--clean
-set DO_CLEAN=yes
 
-REM Check for "quick" as either first or second arg
-if /i "%MODE%"=="quick" (set DO_CLEAN=no) else if /i "%MODE2%"=="quick" (set DO_CLEAN=no)
+set DO_CLEAN=no
+set DO_NSIS=no
+set NSIS_RELEASE=no
+set IS_DEBUG=no
 
-REM Check for "debug" as either first or second arg
-if /i "%MODE%"=="debug" (set IS_DEBUG=yes) else if /i "%MODE2%"=="debug" (set IS_DEBUG=yes)
+if /i "%MODE%"=="full"     set DO_CLEAN=yes
+if /i "%MODE%"=="release"  set DO_CLEAN=yes & set DO_NSIS=yes & set NSIS_RELEASE=yes
+if /i "%MODE%"=="installer" set DO_NSIS=yes & set NSIS_RELEASE=yes
+if /i "%MODE%"=="debug"    set IS_DEBUG=yes
+if /i "%MODE2%"=="debug"   set IS_DEBUG=yes
+if /i "%MODE2%"=="installer" set DO_NSIS=yes & set NSIS_RELEASE=yes
 
+REM ── Check venv ─────────────────────────────────────────────
+if not exist "%PYTHON%" (
+    echo [ERROR] .venv not found
+    pause & exit /b 1
+)
+
+REM ── Select spec ───────────────────────────────────────────
 if "%IS_DEBUG%"=="yes" (
     set SPEC_FILE=TwelveToneAnalyzer_debug.spec
     set OUTPUT_NAME=%APP_NAME%_debug
-    if "%DO_CLEAN%"=="no" (
-        echo [MODE] Quick debug build (incremental, console visible, ^~30s^)
-    ) else (
-        echo [MODE] Debug build (full clean, console visible, ^~5min^)
-    )
 ) else (
     set SPEC_FILE=TwelveToneAnalyzer.spec
     set OUTPUT_NAME=%APP_NAME%
-    if "%DO_CLEAN%"=="no" (
-        echo [MODE] Quick release build (incremental, no console, ^~30s^)
-    ) else (
-        echo [MODE] Release build (full clean, no console, ^~5min^)
-    )
 )
 
-REM ============================================================
-REM  3. Clean old build artifacts (skip in quick mode)
-REM ============================================================
-if "%DO_CLEAN%"=="yes" (
-    echo [INFO] Cleaning old build cache...
-    set BUILD_DIR=build
-    if exist "%BUILD_DIR%\%OUTPUT_NAME%"   rmdir /s /q "%BUILD_DIR%\%OUTPUT_NAME%"   2>nul
-    if exist "%DIST_DIR%\%OUTPUT_NAME%"    rmdir /s /q "%DIST_DIR%\%OUTPUT_NAME%"    2>nul
-    echo [INFO] Cache cleaned
-) else (
-    echo [INFO] Quick mode — keeping build cache for incremental speed
-)
+REM ═══════════════════════════════════════════════════════════
+echo.
+echo   TwelveToneAnalyzer Build Pipeline
+echo   Mode: !MODE! !MODE2!   (debug=!IS_DEBUG! clean=!DO_CLEAN! nsis=!DO_NSIS!)
+echo ═══════════════════════════════════════════════════════════
+echo.
 
-REM ============================================================
-REM  4. Verify runtime hooks exist
-REM ============================================================
-if not exist "pyi_rth_qt_dll.py" (
-    echo [WARN] pyi_rth_qt_dll.py not found - build may fail
-)
-if not exist "pyi_rth_music21.py" (
-    echo [WARN] pyi_rth_music21.py not found - music21 corpus may break
-)
-
-REM ============================================================
-REM  5. PyInstaller build via .spec file
-REM    All hidden-import, collect-all, and DLL rules are
-REM    defined in the .spec files — no CLI duplication needed.
-REM ============================================================
-echo ============================================================
-echo   Building %OUTPUT_NAME%.exe ...
-echo ============================================================
+REM ═══════════════════════════════════════════════════════════
+REM Step 1/4 — PyInstaller build
+REM ═══════════════════════════════════════════════════════════
+echo [1/4] ████░░░░░░ PyInstaller build...
 
 if "%DO_CLEAN%"=="yes" (
+    echo        Cleaning old builds...
+    if exist "%BUILD_DIR%\%OUTPUT_NAME%" rmdir /s /q "%BUILD_DIR%\%OUTPUT_NAME%" 2>nul
+    if exist "%DIST_DIR%\%OUTPUT_NAME%"  rmdir /s /q "%DIST_DIR%\%OUTPUT_NAME%"  2>nul
     %PYTHON% -m PyInstaller --clean "%SPEC_FILE%"
 ) else (
+    if exist "%DIST_DIR%\%OUTPUT_NAME%" rmdir /s /q "%DIST_DIR%\%OUTPUT_NAME%" 2>nul
     %PYTHON% -m PyInstaller "%SPEC_FILE%"
 )
 
 if %ERRORLEVEL% neq 0 (
-    echo.
-    echo ============================================================
-    echo  [ERROR] Build failed! Check the output above.
-    echo ============================================================
-    pause
-    exit /b 1
+    echo [ERROR] PyInstaller failed!
+    pause & exit /b 1
 )
+echo        PyInstaller done.
 
-REM ============================================================
-REM  6. Post-build: copy Qt5 DLLs to _internal root
-REM     (belt-and-suspenders for DLL search path on Windows)
-REM ============================================================
+REM ═══════════════════════════════════════════════════════════
+REM Step 2/4 — Post-build fixes
+REM ═══════════════════════════════════════════════════════════
+echo [2/4] ██████░░░░ Post-build fixes...
 set QT5_BIN=%VENV%\Lib\site-packages\PyQt5\Qt5\bin
 set INTERNAL=%DIST_DIR%\%OUTPUT_NAME%\_internal
 if exist "%INTERNAL%\" (
     if exist "%QT5_BIN%\Qt5Core.dll" (
-        echo [INFO] Copying Qt5 DLLs to _internal root...
         copy /y "%QT5_BIN%\*.dll" "%INTERNAL%\" >nul 2>&1
-        echo [INFO] Done
     )
     if exist "resources\fix_qt.conf" (
-        echo [INFO] Patching qt.conf...
         copy /y "resources\fix_qt.conf" "%INTERNAL%\PyQt5\qt.conf" >nul 2>&1
-        echo [INFO] qt.conf patched
+    )
+)
+echo        Post-build done.
+
+REM ═══════════════════════════════════════════════════════════
+REM Step 3/4 — Pre-build prep (clean + optional zip)
+REM ═══════════════════════════════════════════════════════════
+if "%DO_NSIS%"=="yes" (
+    echo [3/4] ████████░░ Pre-build prep...
+    if "%NSIS_RELEASE%"=="yes" (
+        %PYTHON% build_prep.py --zip
+        if %ERRORLEVEL% neq 0 (
+            echo [ERROR] build_prep.py failed!
+            pause & exit /b 1
+        )
+    ) else (
+        %PYTHON% build_prep.py
+    )
+    echo        Pre-build prep done.
+)
+
+REM ═══════════════════════════════════════════════════════════
+REM Step 4/4 — NSIS installer
+REM ═══════════════════════════════════════════════════════════
+if "%DO_NSIS%"=="yes" (
+    echo [4/4] ██████████ NSIS installer...
+    set NSIS_EXE=%LOCALAPPDATA%\Programs\nsis\makensis.exe
+    if not exist "!NSIS_EXE!" set NSIS_EXE=.\nsis_portable\nsis-3.10\makensis.exe
+    if not exist "!NSIS_EXE!" (
+        echo [WARN] NSIS not found, skipping installer
+    ) else (
+        if "%NSIS_RELEASE%"=="yes" (
+            "!NSIS_EXE!" /DRELEASE installer.nsi
+        ) else (
+            "!NSIS_EXE!" installer.nsi
+        )
+        if !ERRORLEVEL! neq 0 (
+            echo [ERROR] NSIS failed!
+            pause & exit /b 1
+        )
+        for %%f in (TwelveToneAnalyzer_Setup_v*.exe) do (
+            echo        Installer: %%f  (!_size! MB^)
+        )
     )
 )
 
-REM ============================================================
+REM ═══════════════════════════════════════════════════════════
 echo.
-echo ============================================================
-echo                       Build Complete!
-echo ============================================================
-echo.
-echo   EXE:  %DIST_DIR%\%OUTPUT_NAME%\%OUTPUT_NAME%.exe
-echo.
-echo   Distribute: zip the "%OUTPUT_NAME%" folder
-echo   User runs:  extract → double-click %OUTPUT_NAME%.exe
-echo.
-echo ============================================================
-echo   Troubleshooting
-echo ============================================================
-echo   "DLL load failed"
-echo     → Check VC++ Redistributable x64 is installed
-echo.
-echo   "No module named 'xxx'"
-echo     → Add to hiddenimports in %SPEC_FILE%
-echo     → Re-run build.bat
-echo.
-echo   EXE crashes silently
-echo     → Run: build.bat debug
-echo     → Launch debug EXE to see Python traceback
-echo ============================================================
+echo   ============================================
+echo     Build Complete!
+echo     EXE: %DIST_DIR%\%OUTPUT_NAME%\%OUTPUT_NAME%.exe
+if "%DO_NSIS%"=="yes" (
+    for %%f in (TwelveToneAnalyzer_Setup_v*.exe) do (
+        echo     Setup: %%f
+    )
+)
+echo   ============================================
 
-REM Open dist folder
-explorer "%DIST_DIR%"
-pause
+if "%DO_NSIS%"=="" explorer "%DIST_DIR%"
+exit /b 0

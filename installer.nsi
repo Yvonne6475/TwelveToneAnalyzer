@@ -1,40 +1,50 @@
 ; ============================================================================
-; Twelve-Tone Music Analyzer Installer Script
-; Usage: makensis.exe installer.nsi
+; Twelve-Tone Music Analyzer — NSIS Installer (optimized)
+;
+; Build modes:
+;   makensis installer.nsi                     → Debug (fast, ~30s)
+;   makensis /DRELEASE installer.nsi           → Release (zip-based, ~60s)
+;
+; Release mode pre-zips dist/ into a single archive so NSIS only
+; processes 1 file instead of 11,000+.  Install time extraction
+; uses PowerShell (built-in on Win 10+).
 ; ============================================================================
 
 Unicode true
-SetCompressor /SOLID lzma
 XPStyle on
 
-; ---------------------------------------------------------------------------
-; [Mod 1] RequestExecutionLevel admin
-; Force UAC elevation prompt at startup - fixes "unable to write qtxxx.dll"
-; ---------------------------------------------------------------------------
+; ═══════════════════════════════════════════════════════════════════
+; Compressor — debug=fast, release=solid-lzma
+; ═══════════════════════════════════════════════════════════════════
+!ifdef RELEASE
+    SetCompressor /SOLID lzma
+    !define COMPRESS_MODE "Release (solid lzma + pre-zip)"
+!else
+    SetCompressor lzma          ; no /SOLID = much faster per-file
+    SetCompressorDictSize 8     ; small dictionary = fast
+    !define COMPRESS_MODE "Debug (fast lzma, no solid)"
+!endif
+
 RequestExecutionLevel admin
 
-; ---------------------------------------------------------------------------
+; ═══════════════════════════════════════════════════════════════════
 ; Definitions
-; ---------------------------------------------------------------------------
+; ═══════════════════════════════════════════════════════════════════
 !define PRODUCT "Twelve-Tone Music Analyzer"
 !define VERSION "1.3.2"
 !define PUBLISHER "Yvonne"
 !define EXE_NAME "TwelveToneAnalyzer.exe"
+!define ZIP_NAME "app.zip"
 
 Name "${PRODUCT} ${VERSION}"
 OutFile "TwelveToneAnalyzer_Setup_v${VERSION}.exe"
 
-; ---------------------------------------------------------------------------
-; [Mod 2] Default install path changed to D:\ to avoid C:\Program Files
-; permission restrictions that cause "unable to write qtxxx.dll/qtxxx.qm"
-; Old: InstallDir "$PROGRAMFILES64\${PRODUCT}"
-; ---------------------------------------------------------------------------
 InstallDir "D:\${PRODUCT}"
 InstallDirRegKey HKLM "Software\${PRODUCT}" "InstallDir"
 
-; ---------------------------------------------------------------------------
+; ═══════════════════════════════════════════════════════════════════
 ; Modern UI
-; ---------------------------------------------------------------------------
+; ═══════════════════════════════════════════════════════════════════
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "FileFunc.nsh"
@@ -43,51 +53,64 @@ InstallDirRegKey HKLM "Software\${PRODUCT}" "InstallDir"
 !define MUI_ICON "${NSISDIR}\Contrib\Graphics\Icons\modern-install.ico"
 !define MUI_UNICON "${NSISDIR}\Contrib\Graphics\Icons\modern-uninstall.ico"
 
-; Pages
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
-; Uninstall pages
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 
-; Languages
 !insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
 
-; ============================================================================
-; [Mod 3] Pre-flight check: detect if TwelveToneAnalyzer.exe is running
-; If running, show warning and abort - prevents "unable to write" errors
-; caused by locked qtxxx.dll / qtxxx.qm files
-; ============================================================================
+; ═══════════════════════════════════════════════════════════════════
+; Pre-flight: detect running instance
+; ═══════════════════════════════════════════════════════════════════
 Function .onInit
-  ; --- Check if the app is already running ---
   nsExec::ExecToStack 'cmd /c tasklist /fi "IMAGENAME eq ${EXE_NAME}" /nh 2>nul | find /i "${EXE_NAME}"'
-  Pop $0   ; find exit code: 0=found, 1=not found
+  Pop $0
   ${If} $0 == 0
     MessageBox MB_ICONSTOP|MB_OK \
-      "${PRODUCT} is currently running!$\n$\nPlease close the application before installing.$\n$\nMethod: Right-click taskbar icon > Close window, or end ${EXE_NAME} in Task Manager."
+      "${PRODUCT} is currently running!$\n$\nPlease close the application before installing."
     Abort
   ${EndIf}
 
-  ; --- Check if already installed (read registry) ---
   ReadRegStr $R0 HKLM "Software\${PRODUCT}" "InstallDir"
   ${If} $R0 != ""
     StrCpy $INSTDIR $R0
   ${EndIf}
+
+  !ifdef RELEASE
+    DetailPrint "Installer mode: ${COMPRESS_MODE}"
+  !endif
 FunctionEnd
 
-; ============================================================================
+; ═══════════════════════════════════════════════════════════════════
 ; Install Section
-; ============================================================================
+; ═══════════════════════════════════════════════════════════════════
 Section "Install"
   CreateDirectory "$INSTDIR"
   SetOutPath "$INSTDIR"
 
-  ; Copy all files from dist\TwelveToneAnalyzer directory
-  File /r "dist\TwelveToneAnalyzer\*.*"
+  !ifdef RELEASE
+    ; ── RELEASE MODE: extract from pre-built zip (1 file → fast NSIS) ──
+    DetailPrint "Extracting application files..."
+    File /oname=$INSTDIR\${ZIP_NAME} "dist\${ZIP_NAME}"
+    ; Use PowerShell to extract (built-in on all Win 10+)
+    ; Suppress progress for speed
+    nsExec::ExecToLog 'powershell -NoProfile -Command "Expand-Archive -Path \"$INSTDIR\${ZIP_NAME}\" -DestinationPath \"$INSTDIR\" -Force"'
+    Pop $0
+    ${If} $0 != 0
+      MessageBox MB_ICONSTOP "Extraction failed (code $0).$\nPlease try reinstalling or contact support."
+      Abort
+    ${EndIf}
+    Delete "$INSTDIR\${ZIP_NAME}"
+  !else
+    ; ── DEBUG MODE: File /r (fast iterations, ~10K files) ──
+    ; Skip junk dirs to speed up
+    File /r /x "__pycache__" /x "*.pyc" /x ".git" "dist\TwelveToneAnalyzer\*.*"
+  !endif
 
   ; Start menu shortcuts
   CreateDirectory "$SMPROGRAMS\${PRODUCT}"
@@ -113,10 +136,7 @@ Section "Install"
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT}" \
     "NoRepair" 1
 
-  ; Store install path for upgrades
   WriteRegStr HKLM "Software\${PRODUCT}" "InstallDir" "$INSTDIR"
-
-  ; Generate uninstaller
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   ; Calculate install size
@@ -126,9 +146,9 @@ Section "Install"
     "EstimatedSize" "$0"
 SectionEnd
 
-; ============================================================================
+; ═══════════════════════════════════════════════════════════════════
 ; Uninstall Section
-; ============================================================================
+; ═══════════════════════════════════════════════════════════════════
 Section "Uninstall"
   Delete "$INSTDIR\uninstall.exe"
   RMDir /r "$INSTDIR"
