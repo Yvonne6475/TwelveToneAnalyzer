@@ -16,13 +16,13 @@ XPStyle on
 ; (5) Disable per-file CRC verification
 CRCCheck off
 
-; (2) Non-solid LZMA: allows SetCompress off for the zip (raw copy = instant)
+; (2) ZLIB for fast decompression — ~2-3x faster install than LZMA
 !ifdef RELEASE
-    SetCompressor lzma
-    !define COMPRESS_MODE "Release (lzma + zip raw copy)"
+    SetCompressor zlib
+    !define COMPRESS_MODE "Release (zlib)"
 !else
-    SetCompressor lzma
-    !define COMPRESS_MODE "Debug (lzma)"
+    SetCompressor zlib
+    !define COMPRESS_MODE "Debug (zlib)"
 !endif
 
 ; (1) Admin rights + locked-file retry
