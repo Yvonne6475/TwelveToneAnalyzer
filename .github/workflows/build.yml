@@ -83,15 +83,14 @@ jobs:
 
       - name: Install NSIS
         shell: bash
-        run: |
-          choco install nsis -y 2>&1 | tail -3
-          echo "$PROGRAMFILES/NSIS" >> $GITHUB_PATH
+        run: choco install nsis -y 2>&1 | tail -3
 
       - name: Build NSIS installer
-        shell: bash
+        shell: pwsh
         run: |
-          export PATH="$PATH:/c/Program Files (x86)/NSIS:/c/Program Files/NSIS:$PROGRAMFILES/NSIS:${PROGRAMFILES(x86)}/NSIS"
-          makensis /DVERSION="${{ steps.ver.outputs.version }}" installer.nsi
+          $nsis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $nsis)) { $nsis = "C:\Program Files\NSIS\makensis.exe" }
+          & $nsis /DVERSION="${{ steps.ver.outputs.version }}" installer.nsi
 
       - uses: actions/upload-artifact@v4
         with:
