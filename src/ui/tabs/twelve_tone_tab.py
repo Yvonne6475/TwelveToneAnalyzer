@@ -280,10 +280,42 @@ class TwelveToneTab(QWidget):
         for label, row_data in forms.items():
             text += f"{label} = {row_data}\n"
         self._forms_text.setText(text)
-        self._matrix_widget.show_matrix(self._row)
+        # Heatmap — auto-popup in standalone window; prompt save on close
+        import matplotlib.pyplot as _plt
+        _plt.close('all')
+        self._matrix_widget.show_matrix(self._row, block=False)
+
+        # Detect when heatmap window is closed → prompt save
+        _fig_num = getattr(self._matrix_widget, '_heatmap_num', None)
+
+        def _check_close():
+            if _fig_num is None or not _plt.fignum_exists(_fig_num):
+                self._heatmap_timer.stop()
+                ans = QMessageBox.question(
+                    self, tr("tt.matrix_group"),
+                    tr("tt.heatmap_save_prompt"),
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes,
+                )
+                if ans == QMessageBox.Yes:
+                    path, _ = QFileDialog.getSaveFileName(
+                        self, tr("tt.export_matrix"),
+                        default_save_path("12_tone_matrix_heatmap.png"),
+                        "PNG (*.png);;All Files (*)",
+                    )
+                    if path:
+                        self._matrix_widget.fig.savefig(path, dpi=300)
+                        QMessageBox.information(
+                            self, tr("tt.matrix_group"),
+                            tr("tt.matrix_exported", path=path),
+                        )
+                _plt.close('all')
+
+        from PyQt5.QtCore import QTimer
+        self._heatmap_timer = QTimer(self)
+        self._heatmap_timer.timeout.connect(_check_close)
+        self._heatmap_timer.start(300)
 
         # Numeric matrix — data source: music21.serial.TwelveToneRow
-        from music21 import serial
         ttr = serial.TwelveToneRow(self._row)
         m21_matrix = ttr.matrix()
         # Extract pitch-class integers from the TwelveToneMatrix
@@ -297,7 +329,6 @@ class TwelveToneTab(QWidget):
         def _edge(letter, pc):
             return f"{letter}{pc:>2d}"
 
-        # Column width: 4 chars per cell + 2 space gap = 6 chars
         COL_GAP = "  "
         PAD = " " * 6
 
@@ -309,8 +340,8 @@ class TwelveToneTab(QWidget):
         for i, r in enumerate(matrix):
             prefix = f" P{r[0]:>2d}" if i == 0 else f" I{r[0]:>2d}"
             suffix = _edge("R", r[-1])
-            cells = COL_GAP.join(f"{_pc_label(v):>4}" for v in r)
-            lines.append(f"{prefix}  {cells}  {suffix}")
+            row_text = COL_GAP.join(_pc_label(v) for v in r)
+            lines.append(f"{prefix}  {row_text}  {suffix}")
 
         # RI footer row
         ri_labels = [_edge("RI", matrix[-1][j]) for j in range(12)]
