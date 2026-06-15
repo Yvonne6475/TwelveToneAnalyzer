@@ -88,7 +88,9 @@ def create_zip():
     start = datetime.now()
 
     file_count = 0
-    with zipfile.ZipFile(ZIP_OUT, "w", zipfile.ZIP_DEFLATED) as zf:
+    # Use STORE (no compression) — NSIS lzma will compress the whole bundle.
+    # DEFLATE pre-compression blocks lzma from achieving good ratios.
+    with zipfile.ZipFile(ZIP_OUT, "w", zipfile.ZIP_STORED) as zf:
         for root, dirs, files in os.walk(DIST, topdown=True):
             dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
             for f in files:
