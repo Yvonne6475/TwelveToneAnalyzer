@@ -93,7 +93,7 @@ Section "Install"
   SetCompress off
   File /oname=$INSTDIR\${ZIP_NAME} "dist\${ZIP_NAME}"
   SetCompress auto
-  nsExec::ExecToLog "powershell -NoProfile -Command \"Expand-Archive -Path '$INSTDIR\${ZIP_NAME}' -DestinationPath '$INSTDIR' -Force\""
+  nsExec::ExecToLog "powershell -NoProfile -Command \"Expand-Archive -Path '$INSTDIR\\${ZIP_NAME}' -DestinationPath '$INSTDIR' -Force\""
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONSTOP "Extraction failed (code $0).$\nPlease try reinstalling or contact support."
