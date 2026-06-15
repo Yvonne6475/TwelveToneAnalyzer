@@ -18,6 +18,9 @@ hiddenimports = ['matplotlib.backends.backend_qt5agg', 'PyQt5.sip', 'matplotlib.
     'librosa', 'scipy.interpolate', 'scipy.signal', 'numpy']
 binaries += collect_dynamic_libs('PyQt5')
 tmp_ret = collect_all('PyQt5')
+# Collect all from scipy so C extensions like _cdflib are bundled
+tmp_ret2 = collect_all('scipy')
+datas += tmp_ret2[0]; binaries += tmp_ret2[1]; hiddenimports += tmp_ret2[2]
 # Filter Qt dev-tool data (uic, pylupdate, pyrcc) and unused-module DLLs
 # so they are not packaged.  Runtime-only Qt modules (Core/Gui/Widgets/
 # Network/PrintSupport/Svg/OpenGL) are kept.
