@@ -109,7 +109,7 @@ class TwelveToneTab(QWidget):
         # Scrollable container for numeric matrix
         matrix_scroll = QScrollArea()
         matrix_scroll.setWidgetResizable(True)
-        matrix_scroll.setMaximumHeight(490)
+        matrix_scroll.setMaximumHeight(520)
         matrix_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
 
         self._matrix_numeric = QTextEdit()
