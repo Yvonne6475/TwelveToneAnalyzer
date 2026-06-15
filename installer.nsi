@@ -92,7 +92,8 @@ Section "Install"
 
   DetailPrint "Extracting application files..."
   File /oname=$INSTDIR\${ZIP_NAME} "dist\${ZIP_NAME}"
-  nsExec::ExecToLog 'powershell -NoProfile -Command "Expand-Archive -Path \"$INSTDIR\${ZIP_NAME}\" -DestinationPath \"$INSTDIR\" -Force"'
+  ; .NET ZipFile — much faster than Expand-Archive (no per-file progress overhead)
+  nsExec::ExecToLog 'powershell -NoProfile -Command "[System.IO.Compression.ZipFile]::ExtractToDirectory(\"$INSTDIR\${ZIP_NAME}\", \"$INSTDIR\", \$true)"'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONSTOP "Extraction failed (code $0).$\nPlease try reinstalling or contact support."

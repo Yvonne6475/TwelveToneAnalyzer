@@ -241,6 +241,7 @@ class TwelveToneTab(QWidget):
         self._extracted_label.setText("")
         self._manual_input.clear()
         self._forms_text.clear()
+        self._row_result.clear()
         self._matrix_widget.setVisible(False)
         self._matrix_numeric.clear()
         # Repopulate part combo
