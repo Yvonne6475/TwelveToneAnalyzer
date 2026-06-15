@@ -75,13 +75,16 @@ class TwelveToneTab(QWidget):
 
         layout.addWidget(extract_group)
 
-        # ── Forms display — enlarged with vertical scrollbar ──────────
+        # ── Forms display — large font, scrollable ────────────────────
         forms_group = QGroupBox(tr("tt.forms_group"))
         forms_layout = QVBoxLayout(forms_group)
         self._forms_text = QTextEdit()
         self._forms_text.setReadOnly(True)
-        self._forms_text.setMinimumHeight(140)
-        self._forms_text.setStyleSheet("font-family: Consolas, monospace; font-size: 14px;")
+        self._forms_text.setMinimumHeight(180)
+        self._forms_text.setStyleSheet(
+            "font-family: Consolas, monospace; font-size: 16px;"
+            "background-color: #fefdfb; color: #2c2c2c;"
+        )
         forms_layout.addWidget(self._forms_text)
         layout.addWidget(forms_group)
 
@@ -332,13 +335,9 @@ class TwelveToneTab(QWidget):
         COL_GAP = "  "
         PAD = " " * 6
 
-        # P header row
-        p_labels = [_edge("P", matrix[0][j]) for j in range(12)]
-        lines.append(PAD + COL_GAP.join(f"{lbl:>4}" for lbl in p_labels))
-
-        # Data rows (I left, R right)
+        # Data rows — all 12 rows use I label on left, R label on right
         for i, r in enumerate(matrix):
-            prefix = f" P{r[0]:>2d}" if i == 0 else f" I{r[0]:>2d}"
+            prefix = f" I{r[0]:>2d}"
             suffix = _edge("R", r[-1])
             row_text = COL_GAP.join(_pc_label(v) for v in r)
             lines.append(f"{prefix}  {row_text}  {suffix}")
