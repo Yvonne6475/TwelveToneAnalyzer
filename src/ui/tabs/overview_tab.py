@@ -112,9 +112,9 @@ class OverviewTab(QWidget):
         try:
             import matplotlib.pyplot as plt
             max_m = get_measure_range(self._score)[1]
-            p = self._score.measures(1, max_m).plot(doneAction=None)
+            p = self._score.measures(1, max_m).plot(show=False)
             p.figure.set_size_inches(16, 16)
             plt.title(f"Full Score (m.1-{max_m})")
-            p.figure.show()
+            plt.show()
         except Exception as e:
             QMessageBox.warning(self, tr("overview.plot_error"), str(e))

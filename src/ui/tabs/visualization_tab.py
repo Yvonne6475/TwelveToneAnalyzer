@@ -142,35 +142,29 @@ class VisualizationTab(QWidget):
         from music21 import graph
 
         if plot_type == 0:
-            p = self._score.measures(start, end).plot(doneAction=None)
-            p.figure.show()
+            self._score.measures(start, end).plot()
         elif plot_type == 1:
-            p = self._score.measures(start, end).plot('histogram', 'pitchClass', doneAction=None)
-            p.figure.show()
+            self._score.measures(start, end).plot('histogram', 'pitchClass')
         elif plot_type == 2:
             p = graph.plot.ScatterWeightedPitchClassQuarterLength(
-                self._score.measures(start, end), doneAction=None
+                self._score.measures(start, end)
             )
             p.run()
-            p.figure.show()
         elif plot_type == 3:
-            p = self._score.measures(start, end).plot('scatter', 'measure', 'pitchClass', doneAction=None)
-            p.figure.show()
+            self._score.measures(start, end).plot('scatter', 'measure', 'pitchClass')
         elif plot_type == 4:
             src = self._midi_score if self._midi_score else self._score
-            p = src.measures(start, end).plot('horizontalbarweighted', doneAction=None)
-            p.figure.show()
+            src.measures(start, end).plot('horizontalbarweighted')
         elif plot_type == 5:
             src = self._midi_score if self._midi_score else self._score
-            plot_3d = src.measures(start, end).plot('3dbars', doneAction=None)
+            plot_3d = src.measures(start, end).plot('3dbars', show=False)
             plot_3d.figure.set_size_inches(16, 16)
             plt.tight_layout()
-            plot_3d.figure.show()
+            plt.show()
         elif plot_type == 6:
             from music21.graph.plot import WindowedKey
-            wk = WindowedKey(self._score.measures(start, end), doneAction=None)
+            wk = WindowedKey(self._score.measures(start, end))
             wk.run()
-            wk.figure.show()
 
     def _on_save_png(self):
         if self._current_fig is None:
