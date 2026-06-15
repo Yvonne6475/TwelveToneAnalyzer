@@ -31,7 +31,7 @@ SetOverwrite try
 
 ; Definitions
 !define PRODUCT "Twelve-Tone Music Analyzer"
-!define VERSION "1.3.4"
+; VERSION injected by CI via /DVERSION=... (do NOT hardcode here)
 !define PUBLISHER "Yvonne"
 !define EXE_NAME "TwelveToneAnalyzer.exe"
 !define ZIP_NAME "app.zip"
