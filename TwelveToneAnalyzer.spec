@@ -29,22 +29,28 @@ _qt_exclude_dll = {
     'Qt5Quick3D', 'Qt5QuickTest', 'Qt5Positioning',
     'Qt5Multimedia', 'Qt5MultimediaWidgets',
 }
-def _keep_qt_binary(bin_path):
-    name = os.path.basename(bin_path)
+def _keep_qt_binary(bin_src, bin_dest):
+    """Exclude unused Qt module DLLs and QML plugins."""
+    name = os.path.basename(bin_src)
     for dll in _qt_exclude_dll:
         if name.startswith(dll):
             return False
+    dest_lower = bin_dest.replace('\\', '/').lower()
+    if '/qml/' in dest_lower:
+        return False
     return True
 
 def _keep_qt_data(data_path):
-    """Exclude uic/, pyrcc, pylupdate source trees from packaging."""
+    """Exclude uic/, pyrcc, pylupdate and QML source trees from packaging."""
     lower = data_path.replace('\\', '/').lower()
     if '/uic/' in lower or '/pylupdate' in lower or '/pyrcc' in lower:
+        return False
+    if '/qml/' in lower:
         return False
     return True
 
 datas += [(s, d) for (s, d) in tmp_ret[0] if _keep_qt_data(s)]
-binaries += [(s, d) for (s, d) in tmp_ret[1] if _keep_qt_binary(s)]
+binaries += [(s, d) for (s, d) in tmp_ret[1] if _keep_qt_binary(s, d)]
 hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('music21')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
@@ -101,6 +107,10 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+# Strip QML files regardless of how they got collected (3-tuple TOC format)
+a.datas = [t for t in a.datas if '/qml/' not in t[1].replace('\\', '/').lower()]
+a.binaries = [t for t in a.binaries if '/qml/' not in t[1].replace('\\', '/').lower()]
+
 coll = COLLECT(
     exe,
     a.binaries,
