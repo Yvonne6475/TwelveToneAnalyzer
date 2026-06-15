@@ -12,6 +12,11 @@ from pathlib import Path
 if getattr(sys, 'frozen', False):
     _bundle_dir = Path(getattr(sys, '_MEIPASS', Path(sys.executable).parent))
     _corpus_path = _bundle_dir / 'music21' / 'corpus'
+    # PyInstaller macOS bundles symlink corpus subdirs → Contents/Resources/.
+    # Python's pathlib.rglob does NOT follow directory symlinks, so music21's
+    # corpus.getPaths() → _findPaths() finds zero files.  Resolve to the real
+    # path so the recursive glob works.
+    _corpus_path = _corpus_path.resolve()
     if _corpus_path.is_dir():
         # Pre-import music21 environment and set the path before any
         # other music21 imports happen
