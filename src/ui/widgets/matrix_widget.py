@@ -47,8 +47,8 @@ class MatrixWidget(QWidget):
         cax = ax.matshow(mat, cmap='tab20', vmin=0, vmax=11)
 
         # Edge labels
-        top_labels = [f"P{mat[0, j]}" for j in range(12)]
-        left_labels = [f"I{mat[i, 0]}" for i in range(12)]
+        top_labels = [f"I{mat[0, j]}" for j in range(12)]
+        left_labels = [f"P{mat[i, 0]}" for i in range(12)]
         right_labels = [f"R{mat[i, -1]}" for i in range(12)]
         bottom_labels = [f"RI{mat[-1, j]}" for j in range(12)]
 
@@ -72,7 +72,7 @@ class MatrixWidget(QWidget):
                 ax.text(j, i, f"{NOTE_NAMES[pc]}\n({pc})",
                         ha="center", va="center", fontsize=12)
 
-        ax.set_title("12-Tone Matrix  ( P / I / R / RI )", fontsize=20, pad=25)
+        ax.set_title("12-Tone Matrix  ( I top / P left / R right / RI bottom )", fontsize=20, pad=25)
         cb = plt.colorbar(cax, shrink=0.85)
         cb.set_label("Pitch Class: 0=C, 10=A, 11=B", fontsize=14)
         plt.tight_layout()
