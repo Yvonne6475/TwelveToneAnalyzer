@@ -11,8 +11,10 @@ REM     - TwelveToneAnalyzer.spec        (release)
 REM     - TwelveToneAnalyzer_debug.spec  (debug)
 REM
 REM   【用法】
-REM     build.bat         → 发布打包 (文件夹模式, 无控制台)
-REM     build.bat debug   → 调试打包 (文件夹模式, 弹出控制台)
+REM     build.bat               → 发布打包 (全量清理, ~5分钟)
+REM     build.bat debug         → 调试打包 (全量清理, 弹出控制台)
+REM     build.bat quick         → 快速增量打包 (不改依赖时用, ~30秒)
+REM     build.bat quick debug   → 快速增量调试打包
 REM ============================================================
 
 REM ============================================================
@@ -51,27 +53,49 @@ REM Ensure PyInstaller is installed in .venv
 )
 
 REM ============================================================
-REM  2. Select build mode
+REM  2. Select build mode — first arg: [quick] [debug]
 REM ============================================================
 set MODE=%1
-if /i "%MODE%"=="debug" (
+set MODE2=%2
+set CLEAN_FLAG=--clean
+set DO_CLEAN=yes
+
+REM Check for "quick" as either first or second arg
+if /i "%MODE%"=="quick" (set DO_CLEAN=no) else if /i "%MODE2%"=="quick" (set DO_CLEAN=no)
+
+REM Check for "debug" as either first or second arg
+if /i "%MODE%"=="debug" (set IS_DEBUG=yes) else if /i "%MODE2%"=="debug" (set IS_DEBUG=yes)
+
+if "%IS_DEBUG%"=="yes" (
     set SPEC_FILE=TwelveToneAnalyzer_debug.spec
     set OUTPUT_NAME=%APP_NAME%_debug
-    echo [MODE] Debug build (console visible, traceback shown)
+    if "%DO_CLEAN%"=="no" (
+        echo [MODE] Quick debug build (incremental, console visible, ^~30s^)
+    ) else (
+        echo [MODE] Debug build (full clean, console visible, ^~5min^)
+    )
 ) else (
     set SPEC_FILE=TwelveToneAnalyzer.spec
     set OUTPUT_NAME=%APP_NAME%
-    echo [MODE] Release build (no console, folder mode)
+    if "%DO_CLEAN%"=="no" (
+        echo [MODE] Quick release build (incremental, no console, ^~30s^)
+    ) else (
+        echo [MODE] Release build (full clean, no console, ^~5min^)
+    )
 )
 
 REM ============================================================
-REM  3. Clean old build artifacts
+REM  3. Clean old build artifacts (skip in quick mode)
 REM ============================================================
-echo [INFO] Cleaning old build cache...
-set BUILD_DIR=build
-if exist "%BUILD_DIR%\%OUTPUT_NAME%"   rmdir /s /q "%BUILD_DIR%\%OUTPUT_NAME%"   2>nul
-if exist "%DIST_DIR%\%OUTPUT_NAME%"    rmdir /s /q "%DIST_DIR%\%OUTPUT_NAME%"    2>nul
-echo [INFO] Cache cleaned
+if "%DO_CLEAN%"=="yes" (
+    echo [INFO] Cleaning old build cache...
+    set BUILD_DIR=build
+    if exist "%BUILD_DIR%\%OUTPUT_NAME%"   rmdir /s /q "%BUILD_DIR%\%OUTPUT_NAME%"   2>nul
+    if exist "%DIST_DIR%\%OUTPUT_NAME%"    rmdir /s /q "%DIST_DIR%\%OUTPUT_NAME%"    2>nul
+    echo [INFO] Cache cleaned
+) else (
+    echo [INFO] Quick mode — keeping build cache for incremental speed
+)
 
 REM ============================================================
 REM  4. Verify runtime hooks exist
@@ -92,7 +116,11 @@ echo ============================================================
 echo   Building %OUTPUT_NAME%.exe ...
 echo ============================================================
 
-%PYTHON% -m PyInstaller --clean "%SPEC_FILE%"
+if "%DO_CLEAN%"=="yes" (
+    %PYTHON% -m PyInstaller --clean "%SPEC_FILE%"
+) else (
+    %PYTHON% -m PyInstaller "%SPEC_FILE%"
+)
 
 if %ERRORLEVEL% neq 0 (
     echo.
