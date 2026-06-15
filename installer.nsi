@@ -16,15 +16,15 @@ XPStyle on
 ; (5) Disable per-file CRC verification
 CRCCheck off
 
-; (2) LZMA max compression
+; (2) LZMA: small dict = fast decompress; zip already handles per-file compression
 !ifdef RELEASE
     SetCompressor /SOLID lzma
-    SetCompressorDictSize 64
-    !define COMPRESS_MODE "Release (solid lzma 64MB dict + pre-zip)"
+    SetCompressorDictSize 8
+    !define COMPRESS_MODE "Release (solid lzma 8MB dict + zip extract)"
 !else
     SetCompressor /SOLID lzma
-    SetCompressorDictSize 16
-    !define COMPRESS_MODE "Debug (solid lzma 16MB dict)"
+    SetCompressorDictSize 8
+    !define COMPRESS_MODE "Debug (solid lzma 8MB dict)"
 !endif
 
 ; (1) Admin rights + locked-file retry
@@ -85,14 +85,20 @@ Function .onInit
   !endif
 FunctionEnd
 
-; (4) Install Section with Qt dev-tool + junk exclusions
-; Both modes use File /r directly - single extraction pass, no double-zip overhead.
+; (4) Install: zip-extract for fast single-pass installation
 Section "Install"
   CreateDirectory "$INSTDIR"
   SetOutPath "$INSTDIR"
 
   DetailPrint "Extracting application files..."
-  File /r /x "__pycache__" /x "*.pyc" /x ".git" /x "*.lib" /x "*.pdb" /x "*.ilk" /x "*.exp" /x "Qt5Designer*" /x "Qt5Help*" /x "Qt5Test*" /x "Qt5DBus*" /x "Qt5Bluetooth*" /x "Qt5Nfc*" /x "Qt5Sql*" /x "Qt5SerialPort*" /x "Qt5Sensors*" /x "Qt5Location*" /x "Qt5Positioning*" /x "Qt5RemoteObjects*" /x "Qt5WebChannel*" /x "Qt5WebSockets*" /x "Qt5WebView*" /x "Qt5XmlPatterns*" /x "Qt5TextToSpeech*" /x "Qt5WinExtras*" /x "Qt5Quick3D*" /x "Qt5QuickTest*" /x "Qt5Multimedia*" "dist\TwelveToneAnalyzer\*.*"
+  File /oname=$INSTDIR\${ZIP_NAME} "dist\${ZIP_NAME}"
+  nsExec::ExecToLog 'powershell -NoProfile -Command "Expand-Archive -Path \"$INSTDIR\${ZIP_NAME}\" -DestinationPath \"$INSTDIR\" -Force"'
+  Pop $0
+  ${If} $0 != 0
+    MessageBox MB_ICONSTOP "Extraction failed (code $0).$\nPlease try reinstalling or contact support."
+    Abort
+  ${EndIf}
+  Delete "$INSTDIR\${ZIP_NAME}"
 
   ; Start menu shortcuts
   CreateDirectory "$SMPROGRAMS\${PRODUCT}"
