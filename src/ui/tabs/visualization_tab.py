@@ -145,39 +145,43 @@ class VisualizationTab(QWidget):
     @staticmethod
     def _get_image_viewer():
         """Return the user-chosen image viewer path (stored in QSettings)."""
-        from src.utils.config import get_settings
-        return get_settings().value("windows/image_viewer", "", type=str)
+        from src.utils.config import get_image_viewer_path
+        return get_image_viewer_path()
 
     @staticmethod
     def _set_image_viewer(path: str):
-        from src.utils.config import get_settings
-        get_settings().setValue("windows/image_viewer", path)
+        from src.utils.config import set_image_viewer_path
+        set_image_viewer_path(path)
 
     def _open_chart_in_viewer(self, png_path: str):
-        """Open a PNG chart with the user's chosen (or to-be-chosen) image viewer."""
-        import subprocess
+        """Open a PNG chart with BandiView (or user-configured viewer)."""
+        import subprocess, os
         viewer = self._get_image_viewer()
         if not viewer:
-            viewer, _ = QFileDialog.getOpenFileName(
-                self, "Select your image viewer (e.g. Photos, Paint, etc.)",
-                r"C:\Windows\System32", "Executable (*.exe);;All Files (*)"
-            )
-            if not viewer:
-                return  # user cancelled
-            self._set_image_viewer(viewer)
+            # Default: BandiView on D: drive, fallback to user choice
+            default_viewer = r"D:\Program Files (x86)\BandiView\BandiView.exe"
+            if os.path.isfile(default_viewer):
+                viewer = default_viewer
+                self._set_image_viewer(viewer)
+            else:
+                viewer, _ = QFileDialog.getOpenFileName(
+                    self, "Select your image viewer (e.g. BandiView, Photos, etc.)",
+                    r"C:\Windows\System32", "Executable (*.exe);;All Files (*)"
+                )
+                if not viewer:
+                    return  # user cancelled
+                self._set_image_viewer(viewer)
         subprocess.Popen([viewer, png_path], shell=True)
 
     @staticmethod
-    def _save_and_close_figure():
-        """Save current figure to temp PNG, return the path. Close the figure."""
+    def _save_figure_to_temp(fig):
+        """Save figure to a temp PNG file, return the path."""
         import tempfile, os
+        if fig is None:
+            return None
         fd, path = tempfile.mkstemp(suffix='.png', prefix='tta_chart_')
         os.close(fd)
-        try:
-            plt.gcf().savefig(path, dpi=150, bbox_inches='tight')
-        except Exception:
-            plt.savefig(path, dpi=150, bbox_inches='tight')
-        plt.close('all')
+        fig.savefig(path, dpi=150, bbox_inches='tight')
         return path
 
     def _on_generate(self):
@@ -194,96 +198,67 @@ class VisualizationTab(QWidget):
 
         try:
             plt.close('all')
-            self._generate_plot(plot_idx, part_idx, start, end)
-            # On Windows, _generate_plot_win32 sets _current_fig before closing.
-            # On macOS, grab the current figure now (music21 plot may have shown it).
-            if sys.platform != 'win32':
-                self._current_fig = plt.gcf()
+            plot_obj = self._generate_plot(plot_idx, part_idx, start, end)
+            self._current_fig = plot_obj.figure if plot_obj and hasattr(plot_obj, 'figure') else plt.gcf()
             self._current_plot_idx = plot_idx
             self._btn_save.setEnabled(True)
+
+            # Display: macOS uses native matplotlib window; Windows saves PNG → viewer
+            if sys.platform == 'win32':
+                png_path = self._save_figure_to_temp(self._current_fig)
+                if png_path:
+                    self._open_chart_in_viewer(png_path)
+            else:
+                plt.show(block=False)
         except Exception as e:
             QMessageBox.warning(self, tr("viz.plot_error"), str(e))
 
     def _generate_plot(self, plot_type: int, part_idx: int, start: int, end: int):
+        """Create plot figure and return the plot object (cross-platform).
+
+        Uses doneAction=None so music21 creates the figure without saving/launching.
+        Display is handled by the caller via plt.show() or Save PNG button.
+        """
         from music21 import graph
 
         excerpt = self._score.measures(start, end)
 
-        # ── Windows: save to PNG → open with user-chosen viewer ──────
-        if sys.platform == 'win32':
-            return self._generate_plot_win32(plot_type, part_idx, start, end)
-
-        # ── macOS: music21 native plot() ─────────────────────────────
         if plot_type == 0:
-            excerpt.plot()
-        elif plot_type == 1:
-            excerpt.plot('histogram', 'pitchClass')
-        elif plot_type == 2:
-            p = graph.plot.ScatterWeightedPitchClassQuarterLength(excerpt)
-            p.run()
-        elif plot_type == 3:
-            excerpt.plot('scatter', 'measure', 'pitchClass')
-        elif plot_type == 4:
-            src = self._midi_score if self._midi_score else self._score
-            src.measures(start, end).plot('horizontalbarweighted')
-        elif plot_type == 5:
-            src = self._midi_score if self._midi_score else self._score
-            plot_3d = src.measures(start, end).plot('3dbars', show=False)
-            plot_3d.figure.set_size_inches(16, 16)
-            plt.tight_layout()
-            plt.show()
-        elif plot_type == 6:
-            from music21.graph.plot import WindowedKey
-            wk = WindowedKey(excerpt)
-            wk.run()
-
-    def _generate_plot_win32(self, plot_type: int, part_idx: int, start: int, end: int):
-        """Windows: create figure → save to PNG → open with user-chosen viewer."""
-        import music21
-        from music21 import graph
-        try:
-            music21.configure.run()
-        except Exception:
-            pass
-
-        excerpt = self._score.measures(start, end)
-
-        if plot_type == 0:
-            p = excerpt.plot(show=False)
-            p.figure.set_size_inches(18, 18)
+            plot_obj = excerpt.plot('horizontalbar', doneAction=None)
+            plot_obj.figure.set_size_inches(18, 18)
             plt.tight_layout()
 
         elif plot_type == 1:
-            excerpt.plot('histogram', 'pitchClass', show=False)
+            plot_obj = excerpt.plot('histogram', 'pitchClass', doneAction=None)
             plt.tight_layout()
 
         elif plot_type == 2:
-            p = graph.plot.ScatterWeightedPitchClassQuarterLength(excerpt)
-            p.process()  # process() creates figure without showing; .run() would consume it
+            plot_obj = graph.plot.ScatterWeightedPitchClassQuarterLength(excerpt, doneAction=None)
+            plot_obj.run()
 
         elif plot_type == 3:
-            excerpt.plot('scatter', 'measure', 'pitchClass', show=False)
+            plot_obj = excerpt.plot('scatter', 'measure', 'pitchClass', doneAction=None)
             plt.tight_layout()
 
         elif plot_type == 4:
             src = self._midi_score if self._midi_score else self._score
-            src.measures(start, end).plot('horizontalbarweighted', show=False)
+            plot_obj = src.measures(start, end).plot('horizontalbarweighted', doneAction=None)
             plt.tight_layout()
 
         elif plot_type == 5:
             src = self._midi_score if self._midi_score else self._score
-            src.measures(start, end).plot('3dbars', show=False)
+            plot_obj = src.measures(start, end).plot('3dbars', doneAction=None)
             plt.tight_layout()
 
         elif plot_type == 6:
             from music21.graph.plot import WindowedKey
-            wk = WindowedKey(excerpt)
-            wk.process()  # process() creates figure without showing; .run() would consume it
+            plot_obj = WindowedKey(excerpt, doneAction=None)
+            plot_obj.run()
 
-        # Save figure to temp PNG, then open with user's viewer
-        self._current_fig = plt.gcf()  # capture before close
-        png_path = self._save_and_close_figure()
-        self._open_chart_in_viewer(png_path)
+        else:
+            return None
+
+        return plot_obj
 
     def _on_save_png(self):
         if self._current_fig is None:

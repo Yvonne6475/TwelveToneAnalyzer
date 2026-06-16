@@ -175,9 +175,38 @@ TRANSLATIONS = {
         "en": "MuseScore 4 is free music notation software. This application needs it to:\n  • Render score previews\n  • Generate PDF / PNG images\n  • Export annotated score files\n\nMuseScore 4 was not detected on your system. Choose an option:",
     },
     "ms.btn_download": {"zh": "下载免费的 MuseScore 4", "en": "Download Free MuseScore 4"},
-    "ms.btn_browse": {"zh": "已安装，手动定位 MuseScore 4", "en": "Already Installed, Locate MuseScore 4"},
+    "ms.btn_browse": {"zh": "手动定位系统上的 MuseScore 4", "en": "Browse for Installed MuseScore 4"},
     "ms.btn_skip": {"zh": "跳过（部分功能将不可用）", "en": "Skip (Some Features Will Be Unavailable)"},
+    "ms.btn_use_detected": {"zh": "使用选中的 MuseScore", "en": "Use Selected MuseScore"},
+    "ms.found_list": {"zh": "检测到以下 MuseScore 安装，请选择一个：", "en": "The following MuseScore installations were found. Please choose one:"},
     "ms.browse_title": {"zh": "定位 MuseScore 4 可执行文件", "en": "Locate MuseScore 4 Executable"},
+
+    # Image viewer first-run prompt
+    "iv.title": {"zh": "设置图片查看器", "en": "Set Image Viewer"},
+    "iv.heading": {"zh": "选择图片查看器", "en": "Choose Image Viewer"},
+    "iv.desc": {
+        "zh": "图表生成后将自动用图片查看器打开 PNG 图片。推荐使用 BandiView（免费、快速）。\n\n您也可以选择系统上已有的图片查看器。",
+        "en": "Charts will be opened as PNG images. BandiView is recommended — free and fast.\n\nYou can also choose an existing viewer on your system."
+    },
+    "iv.btn_download": {"zh": "下载免费的 BandiView（推荐）", "en": "Download Free BandiView (Recommended)"},
+    "iv.btn_browse": {"zh": "手动选择系统上的图片查看器", "en": "Browse for an Installed Image Viewer"},
+    "iv.btn_skip": {"zh": "跳过（稍后可在图表页设置）", "en": "Skip (Can Be Set Later in Chart Tab)"},
+    "iv.btn_use_selected": {"zh": "使用选中的查看器", "en": "Use Selected Viewer"},
+    "iv.found_list": {"zh": "检测到以下可查看 PNG 的程序，请选择一个：", "en": "The following PNG viewers were found. Please choose one:"},
+    "iv.browse_title": {"zh": "选择图片查看器程序", "en": "Select Image Viewer Program"},
+    "iv.browse_filter": {"zh": "可执行程序 (*.exe);;所有文件 (*)", "en": "Executable (*.exe);;All Files (*)"},
+
+    # Temp directory first-run prompt
+    "td.title": {"zh": "设置临时文件夹", "en": "Set Temp Directory"},
+    "td.heading": {"zh": "选择临时文件存放位置", "en": "Choose Temp File Location"},
+    "td.desc": {
+        "zh": "应用运行中产生的临时文件（图表 PNG、乐谱导出等）将保存在此文件夹中。\n您可以随时在设置中更改。",
+        "en": "Temporary files (chart PNGs, score exports, etc.) will be stored in this folder.\nYou can change this later in Settings."
+    },
+    "td.default_path": {"zh": "默认路径：{path}", "en": "Default path: {path}"},
+    "td.btn_default": {"zh": "使用默认路径", "en": "Use Default Path"},
+    "td.btn_custom": {"zh": "自定义文件夹...", "en": "Choose Custom Folder..."},
+    "td.browse_title": {"zh": "选择临时文件夹", "en": "Select Temp Directory"},
 
     # Settings dialog
     "settings.title": {"zh": "设置", "en": "Settings"},

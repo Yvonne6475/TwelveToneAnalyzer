@@ -135,6 +135,8 @@ from PyQt5.QtGui import QFont
 from src.ui.main_window import MainWindow
 from src.ui.theme import apply_theme
 from src.ui.dialogs.musescore_prompt import check_musescore_on_startup
+from src.ui.dialogs.image_viewer_prompt import check_image_viewer_on_startup
+from src.ui.dialogs.temp_dir_prompt import check_temp_dir_on_startup
 from src.ui.dialogs.language_select_dialog import LanguageSelectDialog
 from src.utils.config import set_temp_dir, get_temp_dir, get_settings
 from src.utils.i18n import load_language
@@ -195,6 +197,13 @@ def main():
 
     # Check MuseScore availability (uses tr(), needs language loaded above)
     musescore_path = check_musescore_on_startup()
+
+    # First-launch image viewer setup (Windows only — macOS uses native matplotlib)
+    if sys.platform == 'win32':
+        check_image_viewer_on_startup()
+
+    # First-launch temp directory setup
+    check_temp_dir_on_startup()
 
     # Create and show main window (centered, reasonable default size)
     window = MainWindow(musescore_path=musescore_path)
