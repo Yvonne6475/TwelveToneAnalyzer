@@ -117,6 +117,18 @@ if getattr(sys, 'frozen', False):
     os.makedirs(_mpl_dir, exist_ok=True)
     os.environ["MPLCONFIGDIR"] = _mpl_dir
 
+# ── Force matplotlib backend BEFORE any PyQt5 imports ──────────────
+# matplotlib auto-detects the backend on first import.  If PyQt5 is
+# already loaded, it may pick a GUI backend that fails inside a frozen
+# app (especially on Windows).  Forcing QtAgg early guarantees that
+# music21 plot() calls render figures in-process rather than spawning
+# external viewers or crashing with "no display" errors.
+try:
+    import matplotlib
+    matplotlib.use("QtAgg")
+except Exception:
+    pass
+
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from PyQt5.QtGui import QFont
 

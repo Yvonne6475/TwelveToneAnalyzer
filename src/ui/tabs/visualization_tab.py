@@ -195,7 +195,10 @@ class VisualizationTab(QWidget):
         try:
             plt.close('all')
             self._generate_plot(plot_idx, part_idx, start, end)
-            self._current_fig = plt.gcf()
+            # On Windows, _generate_plot_win32 sets _current_fig before closing.
+            # On macOS, grab the current figure now (music21 plot may have shown it).
+            if sys.platform != 'win32':
+                self._current_fig = plt.gcf()
             self._current_plot_idx = plot_idx
             self._btn_save.setEnabled(True)
         except Exception as e:
@@ -256,7 +259,7 @@ class VisualizationTab(QWidget):
 
         elif plot_type == 2:
             p = graph.plot.ScatterWeightedPitchClassQuarterLength(excerpt)
-            p.run()
+            p.process()  # process() creates figure without showing; .run() would consume it
 
         elif plot_type == 3:
             excerpt.plot('scatter', 'measure', 'pitchClass', show=False)
@@ -275,9 +278,10 @@ class VisualizationTab(QWidget):
         elif plot_type == 6:
             from music21.graph.plot import WindowedKey
             wk = WindowedKey(excerpt)
-            wk.run()
+            wk.process()  # process() creates figure without showing; .run() would consume it
 
         # Save figure to temp PNG, then open with user's viewer
+        self._current_fig = plt.gcf()  # capture before close
         png_path = self._save_and_close_figure()
         self._open_chart_in_viewer(png_path)
 
