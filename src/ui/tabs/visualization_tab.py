@@ -198,6 +198,9 @@ class VisualizationTab(QWidget):
 
         try:
             plt.close('all')
+            self._btn_generate.setEnabled(False); self._btn_generate.repaint()
+            from PyQt5.QtWidgets import QApplication; QApplication.processEvents()
+            QApplication.setOverrideCursor(Qt.WaitCursor)
             plot_obj = self._generate_plot(plot_idx, part_idx, start, end)
             self._current_fig = plot_obj.figure if plot_obj and hasattr(plot_obj, 'figure') else plt.gcf()
             self._current_plot_idx = plot_idx
@@ -216,6 +219,7 @@ class VisualizationTab(QWidget):
                     subprocess.Popen(['open', png_path])
         except Exception as e:
             QMessageBox.warning(self, tr("viz.plot_error"), str(e))
+        self._btn_generate.setEnabled(True); QApplication.restoreOverrideCursor()
 
     def _get_excerpt(self, part_idx: int, start: int, end: int):
         """Get excerpt for the selected part (or full score if all parts)."""

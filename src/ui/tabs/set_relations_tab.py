@@ -340,6 +340,9 @@ class SetRelationsTab(QWidget):
                                     tr("sr.no_chord_msg"))
             return
 
+        self._btn_from_chord.setEnabled(False); self._btn_from_chord.repaint()
+        from PyQt5.QtWidgets import QApplication; QApplication.processEvents()
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         results = chord_tab._results
 
         # 1) Merge by bar
@@ -389,6 +392,7 @@ class SetRelationsTab(QWidget):
             self._target_combo.setCurrentIndex(0)
 
         self._adjust_combo_dropdown_width()
+        self._btn_from_chord.setEnabled(True); QApplication.restoreOverrideCursor()
 
     def _on_target_changed(self, index):
         pass

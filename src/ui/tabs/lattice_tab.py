@@ -191,7 +191,11 @@ class LatticeTab(QWidget):
             QMessageBox.warning(self, tr("lattice.input_error"), tr("lattice.range_warn"))
             # proceed anyway — user has been warned
 
+        self._btn_generate.setEnabled(False); self._btn_generate.repaint()
+        from PyQt5.QtWidgets import QApplication; QApplication.processEvents()
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         self._draw_lattice(pc_set, min_sz, max_sz)
+        self._btn_generate.setEnabled(True); QApplication.restoreOverrideCursor()
 
     # ── Drawing helpers ───────────────────────────────────────────
 

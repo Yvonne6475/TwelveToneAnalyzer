@@ -102,6 +102,9 @@ class ForteNameTab(QWidget):
             QMessageBox.warning(self, tr("forte.title"), tr("forte.empty_input"))
             return
 
+        self._btn_analyze.setEnabled(False); self._btn_analyze.repaint()
+        from PyQt5.QtWidgets import QApplication; QApplication.processEvents()
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         lines = [l.strip() for l in text.splitlines() if l.strip()]
         self._results = []
 
@@ -155,6 +158,7 @@ class ForteNameTab(QWidget):
 
         self._btn_copy.setEnabled(bool(self._results))
         self._btn_export.setEnabled(bool(self._results))
+        self._btn_analyze.setEnabled(True); QApplication.restoreOverrideCursor()
 
     def _on_copy(self):
         lines = ["Input Set\tNormal Order\tIntervals\tInterval Vector\tPrime Form\tForte Class\tP\tI\tR\tRI"]
@@ -201,6 +205,9 @@ class ForteNameTab(QWidget):
         mw = self._main_window
         if not mw:
             return
+        self._btn_from_chord.setEnabled(False); self._btn_from_chord.repaint()
+        from PyQt5.QtWidgets import QApplication; QApplication.processEvents()
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         chord_tab = mw._chord_tab
         if not hasattr(chord_tab, '_results') or not chord_tab._results:
             QMessageBox.information(self, tr("forte.title"),
@@ -234,6 +241,7 @@ class ForteNameTab(QWidget):
         # bar-merged first, then individual
         all_items = bar_items + indiv_items
 
+        self._btn_from_chord.setEnabled(True); QApplication.restoreOverrideCursor()
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("forte.from_chord_title"))
         dlg.setMinimumSize(500, 400)

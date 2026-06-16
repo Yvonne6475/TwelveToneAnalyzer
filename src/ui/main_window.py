@@ -51,7 +51,6 @@ class MainWindow(QMainWindow):
         self._create_menus()
         self._create_tabs()
         self._create_statusbar()
-
     def _create_menus(self):
         mb = self.menuBar()
 

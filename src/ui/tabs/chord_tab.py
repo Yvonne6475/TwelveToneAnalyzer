@@ -207,6 +207,9 @@ class ChordTab(QWidget):
             QMessageBox.warning(self, tr("chord.range_error"), tr("chord.range_error_msg"))
             return
 
+        self._btn_extract.setEnabled(False); self._btn_extract.repaint()
+        from PyQt5.QtWidgets import QApplication; QApplication.processEvents()
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             self._results = extract_chords(self._score, selected, (start, end), name_map=name_map)
             self._populate_table()
@@ -216,6 +219,7 @@ class ChordTab(QWidget):
             self._btn_save_png.setEnabled(True)
         except Exception as e:
             QMessageBox.critical(self, tr("chord.extract_failed"), str(e))
+        self._btn_extract.setEnabled(True); QApplication.restoreOverrideCursor()
 
     def _populate_table(self):
         self._table.setRowCount(len(self._results))
