@@ -146,8 +146,8 @@ TRANSLATIONS = {
     # About
     "about.title": {"zh": "关于", "en": "About"},
     "about.text": {
-        "zh": "十二音音乐分析软件 v1.3.3.2\n\n基于 music21 和 PyQt5 构建\n专为十二音序列音乐分析设计\n\n依赖: music21, PyQt5, matplotlib, numpy, librosa",
-        "en": "Twelve-Tone Music Analyzer v1.3.3.2\n\nBuilt with music21 and PyQt5\nDesigned for twelve-tone serial music analysis\n\nDependencies: music21, PyQt5, matplotlib, numpy, librosa",
+        "zh": "十二音音乐分析软件 v1.3.8\n\n基于 music21 和 PyQt5 构建\n专为十二音序列音乐分析设计\n\n依赖: music21, PyQt5, matplotlib, numpy, librosa",
+        "en": "Twelve-Tone Music Analyzer v1.3.8\n\nBuilt with music21 and PyQt5\nDesigned for twelve-tone serial music analysis\n\nDependencies: music21, PyQt5, matplotlib, numpy, librosa",
     },
 
     # Update checker
