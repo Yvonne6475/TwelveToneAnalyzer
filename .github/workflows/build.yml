@@ -5,11 +5,21 @@ on:
     branches: [master]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'What to build'
+        required: true
+        type: choice
+        default: 'windows-zip-only'
+        options:
+          - full
+          - windows-zip-only
 
 jobs:
   # ── macOS .app + .dmg ──────────────────────────────────────────
   build-macos:
     runs-on: macos-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.build_type == 'full'
     steps:
       - uses: actions/checkout@v4
 
@@ -48,7 +58,7 @@ jobs:
           path: dist/TwelveToneAnalyzer_Setup_v*.dmg
           retention-days: 7
 
-  # ── Windows .exe + NSIS installer ──────────────────────────────
+  # ── Windows .exe + NSIS installer + portable ZIP ────────────────
   build-windows:
     runs-on: windows-latest
     steps:
@@ -78,7 +88,9 @@ jobs:
         shell: pwsh
         run: |
           $ver = "${{ steps.ver.outputs.version }}"
-          Compress-Archive -Path dist/TwelveToneAnalyzer/* -DestinationPath "dist/TwelveToneAnalyzer_Portable_v${ver}.zip"
+          $src = "dist/TwelveToneAnalyzer"
+          $dst = "dist/TwelveToneAnalyzer_Portable_v${ver}.zip"
+          Compress-Archive -Path "$src/*" -DestinationPath $dst
 
       - uses: actions/upload-artifact@v4
         with:
@@ -86,20 +98,23 @@ jobs:
           path: dist/TwelveToneAnalyzer_Portable_v*.zip
           retention-days: 7
 
+      # NSIS installer — only for full builds
       - name: Install NSIS
+        if: github.event_name != 'workflow_dispatch' || inputs.build_type == 'full'
         shell: bash
         run: choco install nsis -y 2>&1 | tail -3
 
       - name: Build NSIS installer
+        if: github.event_name != 'workflow_dispatch' || inputs.build_type == 'full'
         shell: pwsh
         run: |
           $nsis = "C:\Program Files (x86)\NSIS\makensis.exe"
           if (-not (Test-Path $nsis)) { $nsis = "C:\Program Files\NSIS\makensis.exe" }
           & $nsis /DVERSION="${{ steps.ver.outputs.version }}" installer.nsi
-          # NSIS outputs to current dir; move to dist/ for artifact upload
           Move-Item -Force TwelveToneAnalyzer_Setup_v*.exe dist/
 
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'workflow_dispatch' || inputs.build_type == 'full'
         with:
           name: Windows-EXE
           path: dist/TwelveToneAnalyzer_Setup_v*.exe
@@ -132,6 +147,29 @@ jobs:
         with:
           files: artifacts/*
           tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Manual: upload portable ZIP to existing release ────────────
+  release-zip-only:
+    needs: [build-windows]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.build_type == 'windows-zip-only'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-Portable-ZIP
+          path: artifacts/
+
+      - name: Upload ZIP to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          tag_name: v1.3.3.2
           draft: false
           prerelease: false
         env:
