@@ -1,4 +1,4 @@
-## Twelve-Tone Music Analyzer v1.3.7
+## Twelve-Tone Music Analyzer v1.3.3.2
 
 ### 🐛 Fixes
 - **Fixed plot rendering errors**: forced matplotlib Qt5Agg backend before PyQt5 imports; all music21 plot() calls now use `doneAction=None` + `figure.show()` to avoid external viewer launch errors
