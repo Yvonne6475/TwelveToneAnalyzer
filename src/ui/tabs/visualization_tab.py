@@ -191,26 +191,77 @@ class VisualizationTab(QWidget):
             plot_3d = src.measures(start, end).plot('3dbars', show=False)
             plot_3d.figure.set_size_inches(16, 16)
             plt.tight_layout()
-            plt.show()
+            self._show_or_fallback()
         elif plot_type == 6:
             from music21.graph.plot import WindowedKey
             wk = WindowedKey(excerpt)
             wk.run()
 
+    def _show_or_fallback(self):
+        """Try plt.show(). If it fails, save PNG and let user pick an app to open it."""
+        try:
+            self._show_or_fallback()
+        except Exception:
+            import tempfile, os, subprocess
+            fd, path = tempfile.mkstemp(suffix='.png', prefix='tta_chart_')
+            os.close(fd)
+            try:
+                plt.gcf().savefig(path, dpi=150, bbox_inches='tight')
+            except Exception:
+                plt.savefig(path, dpi=150, bbox_inches='tight')
+            # Let user choose their own image viewer
+            viewer, _ = QFileDialog.getOpenFileName(
+                self, "Choose image viewer to open the chart",
+                "", "Applications (*.exe *.app);;All Files (*)"
+            )
+            if viewer:
+                subprocess.Popen([viewer, path], shell=True)
+
     def _generate_plot_win32(self, plot_type: int, part_idx: int, start: int, end: int):
-        """Pure matplotlib charts for Windows — bypasses music21 display."""
+        """Charts for Windows — try plt.show() first, fallback to external viewer."""
+        import music21
+        try:
+            music21.configure.run()
+        except Exception:
+            pass
+
         excerpt = self._score.measures(start, end)
 
         if plot_type == 0:
-            # Fall back to music21 (notation plot is complex)
-            excerpt.plot()
+            # Try music21 notation plot; fallback to pure matplotlib piano roll
+            try:
+                excerpt.plot(doneAction=None)
+            except Exception:
+                pitches, offsets, durations = [], [], []
+                for el in excerpt.recurse():
+                    if isinstance(el, (music21.note.Note, music21.chord.Chord)):
+                        o = float(el.offset)
+                        d = float(el.quarterLength)
+                        if isinstance(el, music21.note.Note):
+                            pitches.append(el.pitch.ps)
+                            offsets.append(o)
+                            durations.append(d)
+                        else:
+                            for p in el.pitches:
+                                pitches.append(p.ps)
+                                offsets.append(o)
+                                durations.append(d)
+                if pitches:
+                    plt.barh(pitches, durations, left=offsets, height=0.8,
+                             color='steelblue', edgecolor='none')
+                    plt.xlabel('Offset (quarterLength)')
+                    plt.ylabel('Pitch (MIDI)')
+                    plt.title('Note Quarter Length by Pitch')
+                else:
+                    plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
+            self._show_or_fallback()
 
         elif plot_type == 1:
             # Histogram — pitch class distribution
             notes = self._extract_notes(excerpt, part_idx)
             if not notes:
                 plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
-                plt.show()
+                self._show_or_fallback()
                 return
             pcs = [n[0] for n in notes]
             plt.hist(pcs, bins=12, range=(-0.5, 11.5), color='steelblue', edgecolor='white')
@@ -218,14 +269,14 @@ class VisualizationTab(QWidget):
             plt.ylabel('Count')
             plt.title('Pitch Class Histogram')
             plt.xticks(range(12))
-            plt.show()
+            self._show_or_fallback()
 
         elif plot_type == 2:
             # Scatter weighted — pitch class × quarterLength
             notes = self._extract_notes(excerpt, part_idx)
             if not notes:
                 plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
-                plt.show()
+                self._show_or_fallback()
                 return
             pcs = [n[0] for n in notes]
             durs = [n[1] for n in notes]
@@ -234,14 +285,14 @@ class VisualizationTab(QWidget):
             plt.ylabel('Quarter Length')
             plt.xticks(range(12))
             plt.title('Scatter: Pitch Class × Quarter Length')
-            plt.show()
+            self._show_or_fallback()
 
         elif plot_type == 3:
             # Scatter — measure × pitch class
             notes = self._extract_notes(excerpt, part_idx)
             if not notes:
                 plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
-                plt.show()
+                self._show_or_fallback()
                 return
             measures = [n[2] for n in notes]
             pcs = [n[0] for n in notes]
@@ -250,7 +301,7 @@ class VisualizationTab(QWidget):
             plt.ylabel('Pitch Class')
             plt.yticks(range(12))
             plt.title('Pitch Class by Measure')
-            plt.show()
+            self._show_or_fallback()
 
         elif plot_type == 4:
             # Horizontal bar — duration-weighted pitch class
@@ -258,7 +309,7 @@ class VisualizationTab(QWidget):
             notes = self._extract_notes(src.measures(start, end), part_idx)
             if not notes:
                 plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
-                plt.show()
+                self._show_or_fallback()
                 return
             weights = [0.0] * 12
             for pc, dur, _m in notes:
@@ -267,21 +318,60 @@ class VisualizationTab(QWidget):
             plt.yticks(range(12), [str(i) for i in range(12)])
             plt.xlabel('Total Duration (quarterLength)')
             plt.title('Duration-Weighted Pitch Class')
-            plt.show()
+            self._show_or_fallback()
 
         elif plot_type == 5:
-            # 3D bars — still use music21 but keep figure alive
+            # 3D bars from music21 (configure.run() already called above)
             src = self._midi_score if self._midi_score else self._score
-            plot_3d = src.measures(start, end).plot('3dbars', show=False)
-            plot_3d.figure.set_size_inches(16, 16)
-            plt.tight_layout()
-            plt.show()
+            try:
+                plot_3d = src.measures(start, end).plot('3dbars', show=False)
+                plot_3d.figure.set_size_inches(16, 16)
+                plt.tight_layout()
+                self._show_or_fallback()
+            except Exception:
+                # Fall back to 2D bar chart if music21 3D fails
+                notes = self._extract_notes(src.measures(start, end), part_idx)
+                if not notes:
+                    plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
+                    self._show_or_fallback()
+                    return
+                pcs = [n[0] for n in notes]
+                durs = [n[1] for n in notes]
+                plt.bar(range(12), [sum(d for p, d, _ in notes if p == i) for i in range(12)],
+                       color='steelblue', edgecolor='white')
+                plt.xlabel('Pitch Class')
+                plt.ylabel('Total Duration')
+                plt.title('Pitch Class Distribution (3D bars unavailable)')
+                plt.xticks(range(12))
+                self._show_or_fallback()
 
         elif plot_type == 6:
-            # WindowedKey — fall back to music21
-            from music21.graph.plot import WindowedKey
-            wk = WindowedKey(excerpt)
-            wk.run()
+            # WindowedKey from music21 (configure.run() already called above)
+            try:
+                from music21.graph.plot import WindowedKey
+                wk = WindowedKey(excerpt)
+                wk.run()
+            except Exception:
+                # Pure matplotlib colorgrid fallback
+                notes = self._extract_notes(excerpt, part_idx)
+                if not notes:
+                    plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
+                    self._show_or_fallback()
+                    return
+                pcs = [n[0] for n in notes]
+                measures = [n[2] for n in notes]
+                min_m, max_m = min(measures), max(measures) + 1
+                grid = [[0] * 12 for _ in range(min_m, max_m)]
+                for pc, m in zip(pcs, measures):
+                    if min_m <= m < max_m:
+                        grid[m - min_m][pc] += 1
+                plt.imshow(list(zip(*grid))[::-1], aspect='auto', cmap='magma',
+                          extent=[min_m, max_m, 0, 12])
+                plt.xlabel('Measure')
+                plt.ylabel('Pitch Class')
+                plt.title('Key Analysis (color grid fallback)')
+                plt.colorbar(label='Count')
+                self._show_or_fallback()
 
     def _on_save_png(self):
         if self._current_fig is None:
