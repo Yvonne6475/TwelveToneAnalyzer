@@ -1,5 +1,7 @@
 """Visualization tab: generate music21 plots with interactive controls."""
 
+import sys
+
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QGroupBox, QLabel,
     QComboBox, QSpinBox, QPushButton, QMessageBox, QFileDialog,
@@ -140,6 +142,44 @@ class VisualizationTab(QWidget):
                         notes.append((p.pitchClass, el.quarterLength, mn))
         return notes
 
+    @staticmethod
+    def _get_image_viewer():
+        """Return the user-chosen image viewer path (stored in QSettings)."""
+        from src.utils.config import get_settings
+        return get_settings().value("windows/image_viewer", "", type=str)
+
+    @staticmethod
+    def _set_image_viewer(path: str):
+        from src.utils.config import get_settings
+        get_settings().setValue("windows/image_viewer", path)
+
+    def _open_chart_in_viewer(self, png_path: str):
+        """Open a PNG chart with the user's chosen (or to-be-chosen) image viewer."""
+        import subprocess
+        viewer = self._get_image_viewer()
+        if not viewer:
+            viewer, _ = QFileDialog.getOpenFileName(
+                self, "Select your image viewer (e.g. Photos, Paint, etc.)",
+                r"C:\Windows\System32", "Executable (*.exe);;All Files (*)"
+            )
+            if not viewer:
+                return  # user cancelled
+            self._set_image_viewer(viewer)
+        subprocess.Popen([viewer, png_path], shell=True)
+
+    @staticmethod
+    def _save_and_close_figure():
+        """Save current figure to temp PNG, return the path. Close the figure."""
+        import tempfile, os
+        fd, path = tempfile.mkstemp(suffix='.png', prefix='tta_chart_')
+        os.close(fd)
+        try:
+            plt.gcf().savefig(path, dpi=150, bbox_inches='tight')
+        except Exception:
+            plt.savefig(path, dpi=150, bbox_inches='tight')
+        plt.close('all')
+        return path
+
     def _on_generate(self):
         if not self._score:
             return
@@ -162,14 +202,11 @@ class VisualizationTab(QWidget):
             QMessageBox.warning(self, tr("viz.plot_error"), str(e))
 
     def _generate_plot(self, plot_type: int, part_idx: int, start: int, end: int):
-        import sys
         from music21 import graph
 
         excerpt = self._score.measures(start, end)
 
-        # On Windows, music21's plot() internal display doesn't work in frozen
-        # apps.  Use pure matplotlib with plt.show() — same pattern as the
-        # matrix heatmap widget which is confirmed working on Windows.
+        # ── Windows: save to PNG → open with user-chosen viewer ──────
         if sys.platform == 'win32':
             return self._generate_plot_win32(plot_type, part_idx, start, end)
 
@@ -191,35 +228,16 @@ class VisualizationTab(QWidget):
             plot_3d = src.measures(start, end).plot('3dbars', show=False)
             plot_3d.figure.set_size_inches(16, 16)
             plt.tight_layout()
-            self._show_or_fallback()
+            plt.show()
         elif plot_type == 6:
             from music21.graph.plot import WindowedKey
             wk = WindowedKey(excerpt)
             wk.run()
 
-    def _show_or_fallback(self):
-        """Try plt.show(). If it fails, save PNG and let user pick an app to open it."""
-        try:
-            self._show_or_fallback()
-        except Exception:
-            import tempfile, os, subprocess
-            fd, path = tempfile.mkstemp(suffix='.png', prefix='tta_chart_')
-            os.close(fd)
-            try:
-                plt.gcf().savefig(path, dpi=150, bbox_inches='tight')
-            except Exception:
-                plt.savefig(path, dpi=150, bbox_inches='tight')
-            # Let user choose their own image viewer
-            viewer, _ = QFileDialog.getOpenFileName(
-                self, "Choose image viewer to open the chart",
-                "", "Applications (*.exe *.app);;All Files (*)"
-            )
-            if viewer:
-                subprocess.Popen([viewer, path], shell=True)
-
     def _generate_plot_win32(self, plot_type: int, part_idx: int, start: int, end: int):
-        """Charts for Windows — try plt.show() first, fallback to external viewer."""
+        """Windows: create figure → save to PNG → open with user-chosen viewer."""
         import music21
+        from music21 import graph
         try:
             music21.configure.run()
         except Exception:
@@ -228,150 +246,40 @@ class VisualizationTab(QWidget):
         excerpt = self._score.measures(start, end)
 
         if plot_type == 0:
-            # Try music21 notation plot; fallback to pure matplotlib piano roll
-            try:
-                excerpt.plot(doneAction=None)
-            except Exception:
-                pitches, offsets, durations = [], [], []
-                for el in excerpt.recurse():
-                    if isinstance(el, (music21.note.Note, music21.chord.Chord)):
-                        o = float(el.offset)
-                        d = float(el.quarterLength)
-                        if isinstance(el, music21.note.Note):
-                            pitches.append(el.pitch.ps)
-                            offsets.append(o)
-                            durations.append(d)
-                        else:
-                            for p in el.pitches:
-                                pitches.append(p.ps)
-                                offsets.append(o)
-                                durations.append(d)
-                if pitches:
-                    plt.barh(pitches, durations, left=offsets, height=0.8,
-                             color='steelblue', edgecolor='none')
-                    plt.xlabel('Offset (quarterLength)')
-                    plt.ylabel('Pitch (MIDI)')
-                    plt.title('Note Quarter Length by Pitch')
-                else:
-                    plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
-            self._show_or_fallback()
+            p = excerpt.plot(show=False)
+            p.figure.set_size_inches(18, 18)
+            plt.tight_layout()
 
         elif plot_type == 1:
-            # Histogram — pitch class distribution
-            notes = self._extract_notes(excerpt, part_idx)
-            if not notes:
-                plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
-                self._show_or_fallback()
-                return
-            pcs = [n[0] for n in notes]
-            plt.hist(pcs, bins=12, range=(-0.5, 11.5), color='steelblue', edgecolor='white')
-            plt.xlabel('Pitch Class')
-            plt.ylabel('Count')
-            plt.title('Pitch Class Histogram')
-            plt.xticks(range(12))
-            self._show_or_fallback()
+            excerpt.plot('histogram', 'pitchClass', show=False)
+            plt.tight_layout()
 
         elif plot_type == 2:
-            # Scatter weighted — pitch class × quarterLength
-            notes = self._extract_notes(excerpt, part_idx)
-            if not notes:
-                plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
-                self._show_or_fallback()
-                return
-            pcs = [n[0] for n in notes]
-            durs = [n[1] for n in notes]
-            plt.scatter(pcs, durs, alpha=0.5, s=40, c='steelblue')
-            plt.xlabel('Pitch Class')
-            plt.ylabel('Quarter Length')
-            plt.xticks(range(12))
-            plt.title('Scatter: Pitch Class × Quarter Length')
-            self._show_or_fallback()
+            p = graph.plot.ScatterWeightedPitchClassQuarterLength(excerpt)
+            p.run()
 
         elif plot_type == 3:
-            # Scatter — measure × pitch class
-            notes = self._extract_notes(excerpt, part_idx)
-            if not notes:
-                plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
-                self._show_or_fallback()
-                return
-            measures = [n[2] for n in notes]
-            pcs = [n[0] for n in notes]
-            plt.scatter(measures, pcs, alpha=0.5, s=20, c='steelblue')
-            plt.xlabel('Measure')
-            plt.ylabel('Pitch Class')
-            plt.yticks(range(12))
-            plt.title('Pitch Class by Measure')
-            self._show_or_fallback()
+            excerpt.plot('scatter', 'measure', 'pitchClass', show=False)
+            plt.tight_layout()
 
         elif plot_type == 4:
-            # Horizontal bar — duration-weighted pitch class
             src = self._midi_score if self._midi_score else self._score
-            notes = self._extract_notes(src.measures(start, end), part_idx)
-            if not notes:
-                plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
-                self._show_or_fallback()
-                return
-            weights = [0.0] * 12
-            for pc, dur, _m in notes:
-                weights[pc] += dur
-            plt.barh(range(12), weights, color='steelblue', edgecolor='white')
-            plt.yticks(range(12), [str(i) for i in range(12)])
-            plt.xlabel('Total Duration (quarterLength)')
-            plt.title('Duration-Weighted Pitch Class')
-            self._show_or_fallback()
+            src.measures(start, end).plot('horizontalbarweighted', show=False)
+            plt.tight_layout()
 
         elif plot_type == 5:
-            # 3D bars from music21 (configure.run() already called above)
             src = self._midi_score if self._midi_score else self._score
-            try:
-                plot_3d = src.measures(start, end).plot('3dbars', show=False)
-                plot_3d.figure.set_size_inches(16, 16)
-                plt.tight_layout()
-                self._show_or_fallback()
-            except Exception:
-                # Fall back to 2D bar chart if music21 3D fails
-                notes = self._extract_notes(src.measures(start, end), part_idx)
-                if not notes:
-                    plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
-                    self._show_or_fallback()
-                    return
-                pcs = [n[0] for n in notes]
-                durs = [n[1] for n in notes]
-                plt.bar(range(12), [sum(d for p, d, _ in notes if p == i) for i in range(12)],
-                       color='steelblue', edgecolor='white')
-                plt.xlabel('Pitch Class')
-                plt.ylabel('Total Duration')
-                plt.title('Pitch Class Distribution (3D bars unavailable)')
-                plt.xticks(range(12))
-                self._show_or_fallback()
+            src.measures(start, end).plot('3dbars', show=False)
+            plt.tight_layout()
 
         elif plot_type == 6:
-            # WindowedKey from music21 (configure.run() already called above)
-            try:
-                from music21.graph.plot import WindowedKey
-                wk = WindowedKey(excerpt)
-                wk.run()
-            except Exception:
-                # Pure matplotlib colorgrid fallback
-                notes = self._extract_notes(excerpt, part_idx)
-                if not notes:
-                    plt.text(0.5, 0.5, "No notes in selection", ha='center', va='center')
-                    self._show_or_fallback()
-                    return
-                pcs = [n[0] for n in notes]
-                measures = [n[2] for n in notes]
-                min_m, max_m = min(measures), max(measures) + 1
-                grid = [[0] * 12 for _ in range(min_m, max_m)]
-                for pc, m in zip(pcs, measures):
-                    if min_m <= m < max_m:
-                        grid[m - min_m][pc] += 1
-                plt.imshow(list(zip(*grid))[::-1], aspect='auto', cmap='magma',
-                          extent=[min_m, max_m, 0, 12])
-                plt.xlabel('Measure')
-                plt.ylabel('Pitch Class')
-                plt.title('Key Analysis (color grid fallback)')
-                plt.colorbar(label='Count')
-                self._show_or_fallback()
+            from music21.graph.plot import WindowedKey
+            wk = WindowedKey(excerpt)
+            wk.run()
+
+        # Save figure to temp PNG, then open with user's viewer
+        png_path = self._save_and_close_figure()
+        self._open_chart_in_viewer(png_path)
 
     def _on_save_png(self):
         if self._current_fig is None:
