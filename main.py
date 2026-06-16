@@ -60,16 +60,15 @@ if getattr(sys, 'frozen', False):
 # lives so it doesn't show "Cannot find a path to the 'mscore' file".
 # Do this unconditionally (frozen or dev) so PDF export always works.
 try:
-    from music21 import environment, configure
+    from music21 import environment
     from src.utils.config import get_musescore_path
     _ms_path = get_musescore_path()
     if _ms_path:
-        _env21 = environment.Environment()
-        _env21['musicxmlPath'] = _ms_path
-        _env21['musescoreDirectPNGPath'] = _ms_path
-        # Persist config so music21 plot() doesn't pop "configure.run()" dialog
-        configure["musescoreDirectPNGPath"] = _ms_path
-        configure.save()
+        _env2 = environment.Environment()
+        _env2['musicxmlPath'] = _ms_path
+        # Also set the PNG path — music21 uses it for lilypond/pdf fallback
+        if 'musescoreDirectPNGPath' not in _env2 or not _env2['musescoreDirectPNGPath']:
+            _env2['musescoreDirectPNGPath'] = _ms_path
 except Exception:
     pass
 
@@ -117,15 +116,6 @@ if getattr(sys, 'frozen', False):
     _mpl_dir = os.path.join(os.path.expanduser("~"), ".matplotlib")
     os.makedirs(_mpl_dir, exist_ok=True)
     os.environ["MPLCONFIGDIR"] = _mpl_dir
-
-# ── Force matplotlib Qt backend before any PyQt5 import ─────────────
-# music21's plot() defaults to doneAction='write' which can launch
-# external image viewers.  Forcing Qt5Agg ensures figures stay in-process.
-try:
-    import matplotlib
-    matplotlib.use("QtAgg")
-except Exception:
-    pass
 
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from PyQt5.QtGui import QFont

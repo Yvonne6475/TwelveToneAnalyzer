@@ -74,6 +74,18 @@ jobs:
       - name: Build .exe
         run: pyinstaller TwelveToneAnalyzer.spec
 
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.ver.outputs.version }}"
+          Compress-Archive -Path dist/TwelveToneAnalyzer/* -DestinationPath "dist/TwelveToneAnalyzer_Portable_v${ver}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-Portable-ZIP
+          path: dist/TwelveToneAnalyzer_Portable_v*.zip
+          retention-days: 7
+
       - name: Install NSIS
         shell: bash
         run: choco install nsis -y 2>&1 | tail -3
@@ -109,6 +121,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Windows-EXE
+          path: artifacts/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-Portable-ZIP
           path: artifacts/
 
       - uses: softprops/action-gh-release@v2
