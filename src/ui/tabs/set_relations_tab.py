@@ -33,12 +33,13 @@ def _forte(pcs) -> str:
 
 
 def _compute_forms(normal):
-    """Compute P, I, R, RI from normal-order pitch-class list."""
+    """Compute P, I, R, RI from normal-order pitch-class list.
+    I(p) = (12 - p) % 12  — standard twelve-tone inversion.
+    """
     if not normal:
         return [], [], [], []
-    first = normal[0]
     p_form = list(normal)
-    i_form = [(2 * first - p) % 12 for p in p_form]
+    i_form = [(12 - p) % 12 for p in p_form]
     r_form = list(reversed(p_form))
     ri_form = list(reversed(i_form))
     return p_form, i_form, r_form, ri_form
