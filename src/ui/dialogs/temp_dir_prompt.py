@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 
-from src.utils.config import get_temp_dir, set_temp_dir, get_settings
+from src.utils.config import get_temp_dir, set_temp_dir, get_settings, _default_temp_dir
 from src.utils.i18n import tr
 
 
@@ -24,10 +24,6 @@ class TempDirPromptDialog(QDialog):
         self.setMinimumWidth(800)
         self.setMinimumHeight(480)
 
-    def reject(self):
-        # User closed window → accept with empty (caller uses default)
-        super().reject()
-
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
         layout.setContentsMargins(40, 32, 40, 32)
@@ -42,7 +38,7 @@ class TempDirPromptDialog(QDialog):
         layout.addWidget(desc)
 
         # Default path preview
-        default_path = str(Path.home() / "MusicAnalysisTemp")
+        default_path = _default_temp_dir()
         self._default_label = QLabel(
             tr("td.default_path", path=default_path)
         )
@@ -77,7 +73,7 @@ class TempDirPromptDialog(QDialog):
         layout.addWidget(btn_custom)
 
     def _on_use_default(self):
-        default_path = str(Path.home() / "MusicAnalysisTemp")
+        default_path = _default_temp_dir()
         os.makedirs(default_path, exist_ok=True)
         set_temp_dir(default_path)
         self._temp_path = default_path
@@ -97,6 +93,10 @@ class TempDirPromptDialog(QDialog):
             except OSError:
                 pass  # Keep dialog open, user can retry
 
+    def reject(self):
+        """User closed window — accept with empty (caller uses default)."""
+        super().reject()
+
     def temp_path(self) -> str:
         return self._temp_path
 
@@ -108,7 +108,7 @@ def check_temp_dir_on_startup(parent=None) -> str:
         dialog = TempDirPromptDialog(parent)
         if dialog.exec_() == QDialog.Rejected or not dialog.temp_path():
             # User closed without choosing — use default
-            default_path = str(Path.home() / "MusicAnalysisTemp")
+            default_path = _default_temp_dir()
             os.makedirs(default_path, exist_ok=True)
             set_temp_dir(default_path)
             return default_path

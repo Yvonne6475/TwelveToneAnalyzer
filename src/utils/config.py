@@ -82,9 +82,17 @@ def _is_writable_dir(path: str) -> bool:
         return False
 
 
+def _default_temp_dir() -> str:
+    """Default temp dir: D:\\TwelveToneAnalyzer if D: is writable, else user home."""
+    d_drive = r"D:\TwelveToneAnalyzer"
+    if _is_writable_dir(d_drive):
+        return d_drive
+    return str(Path.home() / "MusicAnalysisTemp")
+
+
 def get_temp_dir() -> str:
     settings = get_settings()
-    default = str(Path.home() / "MusicAnalysisTemp")
+    default = _default_temp_dir()
     configured = settings.value("general/temp_dir", default, type=str)
     if _is_writable_dir(configured):
         return configured
