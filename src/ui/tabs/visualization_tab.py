@@ -213,47 +213,71 @@ class VisualizationTab(QWidget):
         except Exception as e:
             QMessageBox.warning(self, tr("viz.plot_error"), str(e))
 
-    def _generate_plot(self, plot_type: int, part_idx: int, start: int, end: int):
-        """Create plot figure and return the plot object (cross-platform).
+    def _get_excerpt(self, part_idx: int, start: int, end: int):
+        """Get excerpt for the selected part (or full score if all parts)."""
+        if part_idx >= 0 and hasattr(self._score, 'parts'):
+            try:
+                part = self._score.parts[part_idx]
+                return part.measures(start, end)
+            except (IndexError, AttributeError):
+                pass
+        return self._score.measures(start, end)
 
-        Uses doneAction=None so music21 creates the figure without saving/launching.
-        Display is handled by the caller via plt.show() or Save PNG button.
-        """
+    @staticmethod
+    def _figsize_for_range(start: int, end: int, base_w: float = 8.0, base_h: float = 6.0):
+        """Figure size that scales with measure count."""
+        n = max(end - start + 1, 1)
+        w = base_w + n * 0.5
+        h = base_h + n * 0.3
+        return (min(w, 24), min(h, 18))
+
+    def _generate_plot(self, plot_type: int, part_idx: int, start: int, end: int):
+        """Create plot figure and return the plot object."""
         from music21 import graph
 
-        excerpt = self._score.measures(start, end)
+        excerpt = self._get_excerpt(part_idx, start, end)
+        w, h = self._figsize_for_range(start, end)
 
         if plot_type == 0:
             plot_obj = excerpt.plot('horizontalbar', doneAction=None)
-            plot_obj.figure.set_size_inches(18, 18)
+            plot_obj.figure.set_size_inches(w, h)
             plt.tight_layout()
 
         elif plot_type == 1:
             plot_obj = excerpt.plot('histogram', 'pitchClass', doneAction=None)
+            plot_obj.figure.set_size_inches(w, h)
             plt.tight_layout()
 
         elif plot_type == 2:
             plot_obj = graph.plot.ScatterWeightedPitchClassQuarterLength(excerpt, doneAction=None)
             plot_obj.run()
+            plot_obj.figure.set_size_inches(w, h)
 
         elif plot_type == 3:
             plot_obj = excerpt.plot('scatter', 'measure', 'pitchClass', doneAction=None)
+            plot_obj.figure.set_size_inches(w, h)
             plt.tight_layout()
 
         elif plot_type == 4:
             src = self._midi_score if self._midi_score else self._score
-            plot_obj = src.measures(start, end).plot('horizontalbarweighted', doneAction=None)
+            excerpt4 = self._get_excerpt(part_idx, start, end) if self._midi_score else excerpt
+            if self._midi_score:
+                excerpt4 = src.measures(start, end)
+            plot_obj = excerpt4.plot('horizontalbarweighted', doneAction=None)
+            plot_obj.figure.set_size_inches(w, h)
             plt.tight_layout()
 
         elif plot_type == 5:
             src = self._midi_score if self._midi_score else self._score
             plot_obj = src.measures(start, end).plot('3dbars', doneAction=None)
+            plot_obj.figure.set_size_inches(w, h)
             plt.tight_layout()
 
         elif plot_type == 6:
             from music21.graph.plot import WindowedKey
             plot_obj = WindowedKey(excerpt, doneAction=None)
             plot_obj.run()
+            plot_obj.figure.set_size_inches(w, h)
 
         else:
             return None
