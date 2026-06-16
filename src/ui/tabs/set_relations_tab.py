@@ -32,6 +32,11 @@ def _forte(pcs) -> str:
     return chord.Chord(pcs).forteClass
 
 
+def _transpose(pcs: list[int], n: int) -> list[int]:
+    """T_n transposition: (p + n) mod 12."""
+    return [(p + n) % 12 for p in pcs]
+
+
 def _compute_forms(normal):
     """Compute P, I, R, RI from normal-order pitch-class list.
     I(p) = (12 - p) % 12  — standard twelve-tone inversion.
@@ -499,13 +504,14 @@ class SetRelationsTab(QWidget):
         self._results_layout.addStretch()
 
     def _add_transformation_section(self, cpx):
-        """Search the universe for sets matching P, I, R, RI forms of the target."""
+        """Search the universe for T_n, P, I, R, RI matches of the target."""
         target = cpx["target"]
         normal = list(chord.Chord(target).normalOrder)
         p_form, i_form, r_form, ri_form = _compute_forms(normal)
 
         # search universe for exact ordered matches
         p_matches, i_matches, r_matches, ri_matches = [], [], [], []
+        tn_matches = {}  # n → [matching sets]
         for s in self._universe:
             if s == p_form:
                 p_matches.append(s)
@@ -515,10 +521,26 @@ class SetRelationsTab(QWidget):
                 r_matches.append(s)
             if s == ri_form:
                 ri_matches.append(s)
+            # Check all T_n transpositions
+            for n in range(12):
+                if s == _transpose(target, n):
+                    tn_matches.setdefault(n, []).append(s)
 
         group = QGroupBox(tr("sr.trans_group"))
         gl = QVBoxLayout(group)
 
+        # T_n section (only show non-empty levels)
+        tn_found = {n: ms for n, ms in tn_matches.items() if ms}
+        if tn_found:
+            gl.addWidget(QLabel(tr("sr.tn_header")))
+            for n in sorted(tn_found):
+                t_form = _transpose(target, n)
+                gl.addWidget(QLabel(
+                    tr("sr.tn_found", n=n, form=_pc_bracket(t_form), count=len(tn_found[n]))))
+        else:
+            gl.addWidget(QLabel(tr("sr.tn_none")))
+
+        # P / I / R / RI
         for label, matches, form in [
             ("P", p_matches, p_form),
             ("I", i_matches, i_form),
