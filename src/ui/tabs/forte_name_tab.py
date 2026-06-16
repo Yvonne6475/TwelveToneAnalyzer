@@ -70,15 +70,14 @@ class ForteNameTab(QWidget):
     def _compute_forms(self, normal):
         """Compute P, I, R, RI forms from a normal-order pitch-class list.
         P = normal order (prime)
-        I = inversion around first note: (2*first - p) % 12
+        I = (12 - p) % 12  — standard twelve-tone inversion
         R = retrograde (reverse of P)
         RI = retrograde-inversion (reverse of I)
         """
         if not normal:
             return [], [], [], []
-        first = normal[0]
         p_form = list(normal)
-        i_form = [(2 * first - p) % 12 for p in p_form]
+        i_form = [(12 - p) % 12 for p in p_form]
         r_form = list(reversed(p_form))
         ri_form = list(reversed(i_form))
         return p_form, i_form, r_form, ri_form
