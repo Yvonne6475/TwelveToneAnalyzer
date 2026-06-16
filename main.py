@@ -181,18 +181,26 @@ def main():
     os.makedirs(temp_dir, exist_ok=True)
     set_temp_dir(temp_dir)
 
-    # ---- First-launch language selection ----
-    # Show the language picker only if the user has never configured it.
-    # After the first choice, the flag "general/language_configured" is set
-    # and the dialog will never appear again automatically.
+    # ---- Version-tracked first-run setup ----
+    # If the app version changed, re-run all setup dialogs so the user
+    # can review/update paths (MuseScore, image viewer, temp dir).
+    from src.core.updater import VERSION
     settings = get_settings()
+    stored_version = settings.value("general/setup_version", "", type=str)
+    if stored_version != VERSION:
+        # Clear first-run flags so setup dialogs re-appear
+        settings.setValue("general/language_configured", False)
+        settings.setValue("musescore/path", "")
+        if sys.platform == 'win32':
+            settings.setValue("windows/image_viewer", "")
+        settings.setValue("general/temp_dir", "")
+        get_settings().sync()
+
+    # ---- Language selection ----
     if not settings.value("general/language_configured", False, type=bool):
         lang_dialog = LanguageSelectDialog()
         lang_dialog.exec_()
-        # LanguageSelectDialog saves the choice + configured flag internally
     else:
-        # Load saved language BEFORE MuseScore check so the prompt
-        # respects the user's previously chosen language.
         load_language()
 
     # Check MuseScore availability (uses tr(), needs language loaded above)
@@ -204,6 +212,10 @@ def main():
 
     # First-launch temp directory setup
     check_temp_dir_on_startup()
+
+    # Mark setup as complete for this version
+    settings.setValue("general/setup_version", VERSION)
+    get_settings().sync()
 
     # Create and show main window (centered, reasonable default size)
     window = MainWindow(musescore_path=musescore_path)
