@@ -203,13 +203,17 @@ class VisualizationTab(QWidget):
             self._current_plot_idx = plot_idx
             self._btn_save.setEnabled(True)
 
-            # Display: macOS uses native matplotlib window; Windows saves PNG → viewer
+            # Display chart: save PNG → open with viewer
             if sys.platform == 'win32':
                 png_path = self._save_figure_to_temp(self._current_fig)
                 if png_path:
                     self._open_chart_in_viewer(png_path)
             else:
-                plt.show(block=False)
+                # macOS: save PNG → open with system Preview
+                import subprocess
+                png_path = self._save_figure_to_temp(self._current_fig)
+                if png_path:
+                    subprocess.Popen(['open', png_path])
         except Exception as e:
             QMessageBox.warning(self, tr("viz.plot_error"), str(e))
 
