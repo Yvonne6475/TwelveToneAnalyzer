@@ -83,10 +83,11 @@ def _is_writable_dir(path: str) -> bool:
 
 
 def _default_temp_dir() -> str:
-    """Default temp dir: D:\\TwelveToneAnalyzer if D: is writable, else user home."""
-    d_drive = r"D:\TwelveToneAnalyzer"
-    if _is_writable_dir(d_drive):
-        return d_drive
+    """Default temp dir: Windows → D:\\TwelveToneAnalyzer; macOS → ~/MusicAnalysisTemp."""
+    if sys.platform == 'win32':
+        d_drive = r"D:\TwelveToneAnalyzer"
+        if _is_writable_dir(d_drive):
+            return d_drive
     return str(Path.home() / "MusicAnalysisTemp")
 
 
