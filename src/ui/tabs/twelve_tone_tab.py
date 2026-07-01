@@ -4,11 +4,12 @@ import os
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
     QComboBox, QPushButton, QTextEdit, QLineEdit, QDialog, QSpinBox,
-    QMessageBox, QFileDialog, QScrollArea,
+    QCheckBox, QMessageBox, QFileDialog, QScrollArea,
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
+from music21 import chord
 from src.core.twelve_tone import (
     generate_forms, generate_matrix, make_row_stream,
     divide_into_chords, make_group_stream,
@@ -155,22 +156,220 @@ class SubsetSearchDialog(QDialog):
             QMessageBox.warning(self, tr("tt.subset_group"), tr("tt.subset_too_short"))
             return
         row = self._row
-        i0 = [(12 - p) % 12 for p in row]
+        pivot = row[0]
+        i0 = [(2 * pivot - p) % 12 for p in row]
         r0 = list(reversed(row))
         ri0 = list(reversed(i0))
         set_len = len(input_set)
         input_sorted = sorted(input_set)
         output = []
         for form_type, base in [("P", row), ("I", i0), ("R", r0), ("RI", ri0)]:
+            base_start = base[0]
             for tn in range(12):
                 form = [(p + tn) % 12 for p in base]
+                label_num = (base_start + tn) % 12
                 for start in range(12 - set_len + 1):
                     window = form[start:start + set_len]
                     if sorted(window) == input_sorted:
                         output.append(
-                            f"{form_type}{tn}  pos.{start+1}-{start+set_len}:  "
+                            f"{form_type}{label_num}  pos.{start+1}-{start+set_len}:  "
                             f"{' '.join(map(str, window))}")
         self._result.setText("\n".join(output) if output else tr("tt.subset_none"))
+
+
+
+class MergeSearchDialog(QDialog):
+    """Dialog: merge selected parts & bars, then search for 12-tone rows."""
+
+    def __init__(self, score, main_window=None, row=None):
+        super().__init__(main_window)
+        self._score = score
+        self._main_window = main_window
+        self._row = row
+        self._part_checks = {}
+        self.setWindowTitle(tr("tt.merge_title"))
+        self.setMinimumSize(600, 450)
+        self._setup_ui()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        # Part selection
+        part_group = QGroupBox(tr("chord.part_label"))
+        part_layout = QHBoxLayout(part_group)
+        diagnostics = diagnose_all_parts(self._score) if self._score else []
+        self._part_checks = {}
+        for d in diagnostics:
+            part = self._score.parts[d.index] if self._score else None
+            display = d.part_name if d.part_name else f"Part {d.index + 1}"
+            cb = QCheckBox(display)
+            cb.setChecked(True)
+            cb.setProperty("part_idx", d.index)
+            self._part_checks[f"{d.index}"] = cb
+            part_layout.addWidget(cb)
+        layout.addWidget(part_group)
+
+        # Bar range
+        bar_row = QHBoxLayout()
+        bar_row.addWidget(QLabel(tr("chord.start_measure")))
+        self._spin_start = QSpinBox()
+        self._spin_start.setMinimum(1)
+        self._spin_start.setMaximum(999)
+        self._spin_start.setValue(1)
+        bar_row.addWidget(self._spin_start)
+        bar_row.addWidget(QLabel(tr("chord.end_measure")))
+        self._spin_end = QSpinBox()
+        self._spin_end.setMinimum(1)
+        self._spin_end.setMaximum(999)
+        self._spin_end.setValue(30)
+        bar_row.addWidget(self._spin_end)
+        bar_row.addStretch()
+        layout.addLayout(bar_row)
+
+        # Search button
+        self._btn_search = QPushButton(tr("tt.btn_merge_search"))
+        self._btn_search.setProperty("accent", "teal")
+        self._btn_search.clicked.connect(self._do_search)
+        layout.addWidget(self._btn_search)
+
+        # Results
+        self._result = QTextEdit()
+        self._result.setReadOnly(True)
+        self._result.setMinimumHeight(200)
+        layout.addWidget(self._result, 1)
+
+        # Close
+        close_btn = QPushButton(tr("forte.btn_close"))
+        close_btn.clicked.connect(self.close)
+        layout.addWidget(close_btn)
+
+    def _do_search(self):
+        if not self._score:
+            self._result.setText(tr("tt.merge_no_score"))
+            return
+
+        selected_parts = set()
+        for key, cb in self._part_checks.items():
+            if cb.isChecked():
+                pi = cb.property("part_idx")
+                if pi is not None:
+                    selected_parts.add(int(pi))
+        if not selected_parts:
+            self._result.setText(tr("tt.merge_no_part"))
+            return
+
+        start = self._spin_start.value()
+        end = self._spin_end.value()
+        if start > end:
+            self._result.setText(tr("chord.range_error_msg"))
+            return
+
+        from music21 import note as m21note
+        from collections import OrderedDict
+
+        # Gather all notes with part & bar info
+        all_notes = []  # (offset, pc, part_name, bar, part_idx)
+        for pi, part in enumerate(self._score.parts):
+            if pi not in selected_parts:
+                continue
+            pn = part.partName if part.partName else f"Part {pi+1}"
+            for m in part.getElementsByClass("Measure"):
+                bn = m.number
+                if bn < start or bn > end:
+                    continue
+                for el in m.notes:
+                    global_off = m.offset + el.offset  # global offset
+                    if isinstance(el, chord.Chord):
+                        for p in el.pitches:
+                            all_notes.append((global_off, p.pitchClass, pn, bn, pi))
+                    elif isinstance(el, m21note.Note):
+                        all_notes.append((global_off, el.pitch.pitchClass, pn, bn, pi))
+        all_notes.sort(key=lambda x: (x[3], x[0]))  # sort by bar, then offset
+
+        if not all_notes:
+            self._result.setText(tr("tt.merge_no_notes"))
+            return
+
+        pc_seq = [pc for _, pc, *_ in all_notes]
+        output = []
+
+        # --- Per-bar, per-part breakdown ---
+        bar_parts = OrderedDict()
+        for off, pc, pn, bn, pi in all_notes:
+            bar_parts.setdefault(bn, OrderedDict()).setdefault(pn, []).append(pc)
+        output.append("=== Per-Bar Part Breakdown ===")
+        for bar in sorted(bar_parts):
+            bar_cons = bar_parts[bar]
+            output.append(f"\n--- Bar {bar} ---")
+            for pn in bar_cons:
+                pcs = bar_cons[pn]
+                unique_pcs = list(dict.fromkeys(pcs))  # preserve order, dedup
+                fc = chord.Chord(unique_pcs).forteClass if len(unique_pcs) > 1 else ""
+                output.append(f"  {pn}: {' '.join(map(str, unique_pcs))}  Forte: {fc}" if fc else f"  {pn}: {' '.join(map(str, unique_pcs))}")
+
+        # --- Merged PC sequence ---
+        unique_count = len(set(pc_seq))
+        unique_pcs_all = list(dict.fromkeys(pc_seq))  # appearance order
+        output.append(f"\n=== Merged PC Sequence ({len(pc_seq)} notes, {unique_count}/12 unique) ===")
+        output.append(' '.join(map(str, pc_seq)))
+        output.append(f"Unique ({len(unique_pcs_all)}): {' '.join(map(str, unique_pcs_all))}")
+
+        # Per-part unique PCs
+        from collections import OrderedDict
+        part_data = OrderedDict()
+        for off, pc, pn, bn, pi in all_notes:
+            part_data.setdefault(pn, []).append(pc)
+        output.append("\n=== Per-Part Unique PCs ===")
+        per_part_parts = []
+        for pn in part_data:
+            pcs = part_data[pn]
+            uniq = list(dict.fromkeys(pcs))
+            per_part_parts.append(f"{pn} [{', '.join(map(str, uniq))}]")
+        output.append("  ".join(per_part_parts))
+
+        # Match against the 48 forms of the confirmed row
+        if self._row and len(unique_pcs_all) == 12:
+            row = self._row
+            pivot = row[0]
+            i0 = [(2 * pivot - p) % 12 for p in row]
+            r0 = list(reversed(row))
+            ri0 = list(reversed(i0))
+            output.append("\n=== Matching Confirm Row Forms ===")
+            matched = False
+            for form_type, base in [("P", row), ("I", i0), ("R", r0), ("RI", ri0)]:
+                base_start = base[0]
+                for tn in range(12):
+                    form = [(p + tn) % 12 for p in base]
+                    if form == unique_pcs_all:
+                        label_num = (base_start + tn) % 12
+                        output.append(f"  ✓ {form_type}{label_num}: {' '.join(map(str, form))}")
+                        matched = True
+            if not matched:
+                output.append("  (no match among 48 forms)")
+
+        # --- 12-tone row search ---
+        if len(pc_seq) >= 12:
+            found = False
+            for start_idx in range(len(pc_seq) - 12 + 1):
+                window = pc_seq[start_idx:start_idx + 12]
+                if sorted(window) == list(range(12)):
+                    found = True
+                    row = list(window)
+                    pivot = row[0]
+                    i0 = [(2 * pivot - p) % 12 for p in row]
+                    r0 = list(reversed(row))
+                    ri0 = list(reversed(i0))
+                    output.append(f"\n--- 12-tone row at notes {start_idx+1}-{start_idx+12} ---")
+                    output.append(f"P{pivot}: {' '.join(map(str, row))}")
+                    output.append(f"I{pivot}: {' '.join(map(str, i0))}")
+                    output.append(f"R{row[-1]}: {' '.join(map(str, r0))}")
+                    output.append(f"RI{i0[-1]}: {' '.join(map(str, ri0))}")
+            if not found:
+                output.append(f"\nNo complete 12-tone row (only {unique_count}/12 unique PCs).")
+        else:
+            output.append(f"\nOnly {len(pc_seq)} notes — need at least 12 for a row.")
+
+        self._result.setText("\n".join(output))
 
 
 class TwelveToneTab(QWidget):
@@ -207,6 +406,12 @@ class TwelveToneTab(QWidget):
         self._btn_subset_search.setProperty("accent", "teal")
         self._btn_subset_search.clicked.connect(self._on_open_subset_search)
         top_bar.addWidget(self._btn_subset_search)
+
+        self._btn_merge_search = QPushButton(tr("tt.btn_merge_search"))
+        self._btn_merge_search.setFont(big_font)
+        self._btn_merge_search.setProperty("accent", "teal")
+        self._btn_merge_search.clicked.connect(self._on_open_merge_search)
+        top_bar.addWidget(self._btn_merge_search)
 
         top_bar.addStretch()
         layout.addLayout(top_bar)
@@ -384,12 +589,6 @@ class TwelveToneTab(QWidget):
 
         layout.addLayout(export_row)
 
-        self._btn_subset_search = QPushButton(tr("tt.subset_group"))
-        self._btn_subset_search.setProperty("accent", "teal")
-        self._btn_subset_search.clicked.connect(self._on_open_subset_search)
-        export_row.addWidget(self._btn_subset_search)
-
-    # ── Collapsible panel toggle ────────────────────────────────
     def _on_open_row_division(self):
         if not self._row:
             return
@@ -407,6 +606,16 @@ class TwelveToneTab(QWidget):
             dlg.exec_()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"SubsetSearchDialog error:\n{type(e).__name__}: {e}")
+
+    def _on_open_merge_search(self):
+        if not self._main_window or not hasattr(self._main_window, '_score') or not self._main_window._score:
+            QMessageBox.warning(self, tr("tt.merge_title"), tr("tt.merge_no_score"))
+            return
+        try:
+            dlg = MergeSearchDialog(self._main_window._score, self._main_window, row=self._row)
+            dlg.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"MergeSearchDialog error:\n{type(e).__name__}: {e}")
 
     def _on_panel_toggled(self, visible: bool):
         if visible:
