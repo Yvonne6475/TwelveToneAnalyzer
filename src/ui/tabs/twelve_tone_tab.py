@@ -3,7 +3,7 @@
 import os
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
-    QComboBox, QPushButton, QTextEdit, QLineEdit,
+    QComboBox, QPushButton, QTextEdit, QLineEdit, QDialog, QSpinBox,
     QMessageBox, QFileDialog, QScrollArea,
 )
 from PyQt5.QtCore import Qt
@@ -22,6 +22,155 @@ from src.ui.widgets.collapsible_panel import CollapsiblePanel
 from src.utils.i18n import tr
 from src.utils.config import show_score, temp_default_path, get_temp_dir
 from src.ui.theme import matrix_text_stylesheet, monospace_font_family
+
+
+
+class RowDivisionDialog(QDialog):
+    """Dialog for dividing a 12-tone row into equal-sized groups."""
+
+    def __init__(self, row: list[int], parent=None):
+        super().__init__(parent)
+        self._row = row
+        self._last_groups = []
+        self.setWindowTitle(tr("tt.row_group"))
+        self.setMinimumSize(520, 380)
+        self._setup_ui()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        size_row = QHBoxLayout()
+        size_row.addWidget(QLabel(tr("tt.dlg_group_size")))
+        self._spin_size = QSpinBox()
+        self._spin_size.setMinimum(1)
+        self._spin_size.setMaximum(12)
+        self._spin_size.setValue(3)
+        self._spin_size.valueChanged.connect(self._do_divide)
+        size_row.addWidget(self._spin_size)
+        size_row.addStretch()
+        layout.addLayout(size_row)
+        self._result = QTextEdit()
+        self._result.setReadOnly(True)
+        layout.addWidget(self._result, 1)
+        btn_row = QHBoxLayout()
+        self._btn_show = QPushButton(tr("chord.btn_show_score"))
+        self._btn_show.clicked.connect(self._on_show)
+        btn_row.addWidget(self._btn_show)
+        self._btn_save = QPushButton(tr("chord.save_png"))
+        self._btn_save.clicked.connect(self._on_save)
+        btn_row.addWidget(self._btn_save)
+        btn_row.addStretch()
+        close_btn = QPushButton(tr("forte.btn_close"))
+        close_btn.clicked.connect(self.close)
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+        self._do_divide()
+
+    def _do_divide(self):
+        gs = self._spin_size.value()
+        self._last_groups = divide_into_chords(self._row, gs)
+        lines = []
+        for i, c in enumerate(self._last_groups):
+            lines.append(
+                f"Group {i+1}: {c['notes']}  "
+                f"Prime: {c['prime_form']}  Forte: {c['forte_class']}"
+            )
+        if len(self._row) % gs != 0:
+            lines.append(
+                f"\n(Note: {len(self._row)} not divisible by {gs}, "
+                f"last group has {len(self._row) % gs} notes)")
+        self._result.setText("\n".join(lines))
+
+    def _on_show(self):
+        if not self._last_groups:
+            return
+        try:
+            s = make_group_stream(self._last_groups, "Row Groups")
+            show_score(s)
+        except Exception as e:
+            QMessageBox.critical(self, tr("overview.plot_error"), str(e))
+
+    def _on_save(self):
+        if not self._last_groups:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, tr("tt.save_row_png"), temp_default_path("row_groups.png"),
+            "PNG (*.png);;All Files (*)")
+        if not path:
+            return
+        try:
+            s = make_group_stream(self._last_groups, "Row Groups")
+            s.write('musicxml.png', path)
+            QMessageBox.information(self, tr("tt.save_row_png"),
+                                    tr("tt.row_png_saved", path=path))
+        except Exception as e:
+            QMessageBox.critical(self, tr("overview.export_failed"), str(e))
+
+
+class SubsetSearchDialog(QDialog):
+    """Dialog for searching a pc-set across all 48 row forms."""
+
+    def __init__(self, row: list[int], parent=None):
+        super().__init__(parent)
+        self._row = row
+        self.setWindowTitle(tr("tt.subset_group"))
+        self.setMinimumSize(520, 380)
+        self._setup_ui()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        input_row = QHBoxLayout()
+        input_row.addWidget(QLabel(tr("tt.subset_label")))
+        self._input = QLineEdit()
+        self._input.setPlaceholderText("6 9 11")
+        self._input.returnPressed.connect(self._do_search)
+        input_row.addWidget(self._input)
+        self._btn_search = QPushButton(tr("tt.btn_search_subset"))
+        self._btn_search.clicked.connect(self._do_search)
+        input_row.addWidget(self._btn_search)
+        layout.addLayout(input_row)
+        self._result = QTextEdit()
+        self._result.setReadOnly(True)
+        layout.addWidget(self._result, 1)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        close_btn = QPushButton(tr("forte.btn_close"))
+        close_btn.clicked.connect(self.close)
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+
+    def _do_search(self):
+        if not self._row or len(self._row) != 12:
+            QMessageBox.warning(self, tr("tt.subset_group"), tr("tt.subset_no_row"))
+            return
+        text = self._input.text().strip()
+        if not text:
+            QMessageBox.warning(self, tr("tt.subset_group"), tr("tt.subset_invalid"))
+            return
+        try:
+            input_set = list(map(int, text.split()))
+        except ValueError:
+            QMessageBox.warning(self, tr("tt.subset_group"), tr("tt.subset_invalid"))
+            return
+        if len(input_set) < 3:
+            QMessageBox.warning(self, tr("tt.subset_group"), tr("tt.subset_too_short"))
+            return
+        row = self._row
+        i0 = [(12 - p) % 12 for p in row]
+        r0 = list(reversed(row))
+        ri0 = list(reversed(i0))
+        set_len = len(input_set)
+        input_sorted = sorted(input_set)
+        output = []
+        for form_type, base in [("P", row), ("I", i0), ("R", r0), ("RI", ri0)]:
+            for tn in range(12):
+                form = [(p + tn) % 12 for p in base]
+                for start in range(12 - set_len + 1):
+                    window = form[start:start + set_len]
+                    if sorted(window) == input_sorted:
+                        output.append(
+                            f"{form_type}{tn}  pos.{start+1}-{start+set_len}:  "
+                            f"{' '.join(map(str, window))}")
+        self._result.setText("\n".join(output) if output else tr("tt.subset_none"))
 
 
 class TwelveToneTab(QWidget):
@@ -43,6 +192,22 @@ class TwelveToneTab(QWidget):
         self._btn_open = QPushButton(tr("tab.open_score"))
         setup_open_menu(self._btn_open, self, lambda score, path: self._main_window.set_score(score, path))
         top_bar.addWidget(self._btn_open)
+
+        big_font = QFont()
+        big_font.setPointSize(13)
+
+        self._btn_row_division = QPushButton(tr("tt.btn_row_division"))
+        self._btn_row_division.setFont(big_font)
+        self._btn_row_division.setProperty("accent", "teal")
+        self._btn_row_division.clicked.connect(self._on_open_row_division)
+        top_bar.addWidget(self._btn_row_division)
+
+        self._btn_subset_search = QPushButton(tr("tt.subset_group"))
+        self._btn_subset_search.setFont(big_font)
+        self._btn_subset_search.setProperty("accent", "teal")
+        self._btn_subset_search.clicked.connect(self._on_open_subset_search)
+        top_bar.addWidget(self._btn_subset_search)
+
         top_bar.addStretch()
         layout.addLayout(top_bar)
 
@@ -205,13 +370,6 @@ class TwelveToneTab(QWidget):
         # ═══════════════════════════════════════════════════════════════
         export_row = QHBoxLayout()
 
-        # Toggle button for row dividing panel
-        self._btn_toggle_panel = QPushButton(tr("tt.panel_btn_open"))
-        self._btn_toggle_panel.setProperty("accent", "teal")
-        self._btn_toggle_panel.clicked.connect(self._row_panel.toggle)
-        self._row_panel.toggled.connect(self._on_panel_toggled)
-        export_row.addWidget(self._btn_toggle_panel)
-
         export_row.addStretch()
 
         self._btn_export_forms = QPushButton(tr("tt.btn_export_forms"))
@@ -226,7 +384,30 @@ class TwelveToneTab(QWidget):
 
         layout.addLayout(export_row)
 
+        self._btn_subset_search = QPushButton(tr("tt.subset_group"))
+        self._btn_subset_search.setProperty("accent", "teal")
+        self._btn_subset_search.clicked.connect(self._on_open_subset_search)
+        export_row.addWidget(self._btn_subset_search)
+
     # ── Collapsible panel toggle ────────────────────────────────
+    def _on_open_row_division(self):
+        if not self._row:
+            return
+        try:
+            dlg = RowDivisionDialog(self._row, self)
+            dlg.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"RowDivisionDialog error:\n{type(e).__name__}: {e}")
+
+    def _on_open_subset_search(self):
+        if not self._row:
+            return
+        try:
+            dlg = SubsetSearchDialog(self._row, self)
+            dlg.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"SubsetSearchDialog error:\n{type(e).__name__}: {e}")
+
     def _on_panel_toggled(self, visible: bool):
         if visible:
             self._btn_toggle_panel.setText(tr("tt.panel_btn_close"))
@@ -473,3 +654,5 @@ class TwelveToneTab(QWidget):
                                     tr("tt.row_png_saved", path=path))
         except Exception as e:
             QMessageBox.critical(self, tr("overview.export_failed"), str(e))
+
+

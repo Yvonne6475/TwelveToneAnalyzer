@@ -35,6 +35,7 @@ class LatticeTab(QWidget):
         super().__init__()
         self._main_window = main_window
         self._chord_entries = []
+        self._lattice_bar_info = {}  # tuple(sorted(pcs)) -> bar_str
         self._current_fig_data = None
         self._setup_ui()
 
@@ -159,6 +160,7 @@ class LatticeTab(QWidget):
         self._input_edit.clear()
         self._collections_edit.clear()
         self._chord_entries = []
+        self._lattice_bar_info = {}  # tuple(sorted(pcs)) -> bar_str
         self._chord_combo.clear()
         self._chord_combo.setEnabled(False)
         self._btn_chord_relations.setEnabled(False)
@@ -364,6 +366,8 @@ class LatticeTab(QWidget):
         # 1) Merge by bar: union of all parts' pc_sets within the same measure
         bar_sets = {}
         for r in results:
+            if len(r.pc_set) <= 1:
+                continue
             bar_sets.setdefault(r.bar, set()).update(r.pc_set)
         bar_entries = []
         for bar in sorted(bar_sets):
@@ -371,27 +375,41 @@ class LatticeTab(QWidget):
             if pc:
                 bar_entries.append((pc, f"Bar {bar}"))
 
-        # 2) Individual chord entries
+        # 2) Individual entries: dedup for combo, accumulate bar info
         seen = set()
         chord_entries = []
         for r in results:
-            key = tuple(r.pc_set)
+            if len(r.pc_set) <= 1:
+                continue
+            key = tuple(r.pc_set)  # already Chords PCs order
             if key not in seen:
                 seen.add(key)
                 chord_entries.append((list(r.pc_set), r.forte_class))
+            if key not in self._lattice_bar_info:
+                self._lattice_bar_info[key] = f"Bar {r.bar} ({r.part_name})"
+            else:
+                existing = self._lattice_bar_info[key]
+                entry = f"Bar {r.bar} ({r.part_name})"
+                if entry not in existing:
+                    self._lattice_bar_info[key] = existing + f"; {entry}"
 
         self._chord_entries = []
         self._chord_combo.blockSignals(True)
         self._chord_combo.clear()
 
-        for pc, fc in bar_entries:
+        for pc, bar_str in bar_entries:
+            fc = chord.Chord(pc).forteClass
             self._chord_entries.append(pc)
-            label = f"[Bar merge] {' '.join(map(str, pc))}  (size={len(pc)}, {fc})"
+            label = f"[Bar merge] {' '.join(map(str, pc))}  (size={len(pc)}, {fc}, {bar_str})"
             self._chord_combo.addItem(label)
 
         for pc, fc in sorted(chord_entries, key=lambda x: len(x[0]), reverse=True):
+            key = tuple(pc)
+            bar_str = self._lattice_bar_info.get(key, "")
+            if bar_str:
+                bar_str = f", {bar_str}"
             self._chord_entries.append(pc)
-            label = f"{' '.join(map(str, pc))}  (size={len(pc)}, {fc})"
+            label = f"{' '.join(map(str, pc))}  (size={len(pc)}, {fc}{bar_str})"
             self._chord_combo.addItem(label)
 
         self._chord_combo.blockSignals(False)

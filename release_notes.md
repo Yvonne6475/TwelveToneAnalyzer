@@ -1,49 +1,39 @@
-## Twelve-Tone Music Analyzer v1.3.3.2
-
-### 🐛 Fixes
-- **Fixed plot rendering errors**: forced matplotlib Qt5Agg backend before PyQt5 imports; all music21 plot() calls now use `doneAction=None` + `figure.show()` to avoid external viewer launch errors
-- **Fixed PDF export Permission denied**: temp directory now validates writability with fallback to `~/MusicAnalysisTemp`; `configure_music21_environment()` syncs music21 scratch dir before every PDF export
-- **URL downloads use original filenames**: replaced MD5 hash naming with `suggested_filename_from_url()`; download prompts save-as dialog before starting transfer
-- **All export dialogs default to temp directory**: instead of Desktop or empty string, exports now suggest the user's configured temp directory
-- **Fixed music21.serial import in frozen app**: `create_12tone_matrix` now uses deferred import to avoid `NameError` in PyInstaller builds
-- **macOS font fallback warnings eliminated**: uses Helvetica Neue on macOS instead of Segoe UI (70ms+ fallback overhead)
-- **Fixed missing `load_language` import** in language selection dialog
+## Twelve-Tone Music Analyzer v1.4.0
 
 ### ✨ New Features
-- **P / I / R / RI transformation analysis** — Forte Name dialog now computes Prime, Inversion, Retrograde, and Retrograde-Inversion forms for each pitch-class set
-- **P/I/R/RI match search in Set Relations** — searches the entire universe for sets matching target transformations
-- **Chord Relation Lattice** — build inclusion lattices directly from extracted chord analysis sets
-- **Adaptive node sizing & spacing** in inclusion lattice — prevents label overlap for long pitch-class names
-- **Golden-ratio edge coloring** in lattice — adjacent parent nodes get maximally distinct colors via tab20 colormap
-- **Straight-line edges with arrows** for clearer inclusion relationship display
-- **Interval Vector display** across Forte Name dialog and Set Relations tab
-- **Consecutive interval display** in Normal Order results
-- **A=10, B=11 musicology convention hint** in twelve-tone matrix
-- **Expanded lattice size range** (1–11) with large-span warning
-- **First-launch language selection dialog**
-- **Collapsible panel** and auto-updater support
+- **Row Division Dialog** — standalone popup window with adjustable group size (1–12), replaces the old collapsible panel
+- **48-Form Subset Search** — input a pitch-class set and search all 48 transformations (P₀–P₁₁, I₀–I₁₁, R₀–R₁₁, RI₀–R₁₁) for consecutive matches (min. 3 notes)
+- **"Get from Chords Analysis" now shows per-chord bar numbers & part names** in Set Relations, Lattice, and Forte Set Analysis
+- **Merged set display** — merged (bar-union) chords shown in Chord Analysis table with yellow background, constituent chord info, and part/voice details
+- **Chord Analysis Markdown export includes per-bar merged rows** with constituent chord breakdown
+- **Prime Form column** added to Chord Analysis table and Markdown/CSV export
+
+### 🔧 Improvements
+- **Chord annotation format**: pitch classes → note names, grouped by pitch height (highest first)
+- **Chords PCs column**: renamed from "Normal Order", now sorted by MIDI pitch descending
+- **Normal Order column**: kept as standard Forte ascending compact form
+- **Intervals now calculated from Chords PCs order** (MIDI-descending) in Set Relations
+- **All analysis buttons now open standalone dialogs** (Row Division, Subset Search)
+- **Set Relations results**: includes Prime Form, Intervals, Normal Order, and bar/part info on every item
+- **Deduplication**: Supersets, Subsets, Z/K relations, Invariants all deduplicated in Set Relations
+- **Single-note sets filtered out** from all "Get from Chords Analysis" imports
+- **Selectable/copyable results text** in Set Relations tab
+- **Merge labels with constituent info**: `[merged Bar 12: [6,9,11](Violin I) + [0,4,7](Viola)]`
+
+### 🐛 Fixes
+- **Forte Set Analysis dialog** now properly shows part/voice info for each chord
+- **Cursor stuck as WaitCursor after extraction** — fixed with forced cursor reset in try/finally
+- **Duplicate entries in Set Relations results** — deduplication added to all result sections
+- **Part name truncation in Chord Analysis table** — enabled word wrap and multi-line support
+- **Row Division dialog class not defined** — missing class definitions properly inserted
 
 ### 📦 Installers
 
 | Platform | File | Size |
 |----------|------|------|
-| 🍎 macOS | `TwelveToneAnalyzer_Setup_v1.3.2.dmg` | ~212 MB |
+| 🍎 macOS | `TwelveToneAnalyzer_Setup_v1.4.0.dmg` | ~212 MB |
 
 ### 🍎 macOS
-1. Double-click `TwelveToneAnalyzer_Setup_v1.3.2.dmg` to mount
+1. Double-click `TwelveToneAnalyzer_Setup_v1.4.0.dmg` to mount
 2. Drag `TwelveToneAnalyzer.app` to `Applications`
 3. Launch from Launchpad or Applications
-
-### Features
-- Twelve-tone matrix analysis with heatmap
-- P / I / R / RI transformation computation
-- Forte set classification with interval vectors
-- Chord analysis (trichords / tetrachords / hexachords)
-- Inclusion lattice with adaptive visualization
-- Chord Relation Lattice
-- Set relations (subsets, supersets, Z/K relations, nexus, transformations)
-- Audio analysis (librosa)
-- Score visualization (music21)
-- ABC and Humdrum format import
-
-Built with PyInstaller | macOS 10.15+

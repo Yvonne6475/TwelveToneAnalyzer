@@ -98,6 +98,8 @@ class SetRelationsTab(QWidget):
         super().__init__()
         self._main_window = main_window
         self._universe = []
+        self._bar_info = {}
+        self._merged_sets = set()  # tuple(sorted(pcs)) -> bar_number (or range str)
         self._worker = None
         self._thread = None
         self._setup_ui()
@@ -347,24 +349,49 @@ class SetRelationsTab(QWidget):
 
         # 1) Merge by bar
         bar_sets = {}
+        bar_set_bars = {}
         for r in results:
+            if len(r.pc_set) <= 1:
+                continue
             bar_sets.setdefault(r.bar, set()).update(r.pc_set)
+            bar_set_bars.setdefault(r.bar, []).append(r.bar)
+        self._merged_sets = set()
+        self._merged_constituents = {}
+        # Track per-bar constituents
+        bar_constituents = {}
+        for r in results:
+            if len(r.pc_set) <= 1:
+                continue
+            bar_constituents.setdefault(r.bar, []).append((list(r.pc_set), r.part_name))
         bar_lines = []
         for bar in sorted(bar_sets):
             pc = sorted(bar_sets[bar])
             if pc:
                 bar_lines.append(_pc_str(pc))
+                key = tuple(sorted(pc))
+                self._bar_info[key] = f"Bar {bar}"
+                self._merged_sets.add(key)
+                cons = bar_constituents.get(bar, [])
+                if key not in self._merged_constituents:
+                    self._merged_constituents[key] = set()
+                for pcs, part in cons:
+                    self._merged_constituents[key].add((tuple(pcs), part))
 
-        # 2) Individual unique pc_sets
-        seen = set()
+        # 2) Individual items (dedup for display, but accumulate bar info)
         indiv_lines = []
+        seen = set()
         for r in results:
             key = tuple(sorted(r.pc_set))
             if key not in seen:
                 seen.add(key)
                 indiv_lines.append(_pc_str(r.pc_set))
-        indiv_lines.sort(key=lambda x: len(x.split()), reverse=True)
-
+            if key not in self._bar_info:
+                self._bar_info[key] = f"Bar {r.bar} ({r.part_name})"
+            else:
+                existing = self._bar_info[key]
+                entry = f"Bar {r.bar} ({r.part_name})"
+                if entry not in existing:
+                    self._bar_info[key] = existing + f"; {entry}"
         all_lines = bar_lines + indiv_lines
 
         self._universe_edit.setText("\n".join(all_lines))
@@ -375,17 +402,27 @@ class SetRelationsTab(QWidget):
         for bar in sorted(bar_sets):
             pc = sorted(bar_sets[bar])
             if pc:
-                label = tr("sr.combo_bar", bar=bar, pc=_pc_str(pc), forte=_forte(pc))
+                key = tuple(sorted(pc))
+                cons = self._merged_constituents.get(key, set())
+                extra = ""
+                if cons:
+                    parts = []
+                    for pcs, part in sorted(cons, key=lambda x: (tuple(x[0]), x[1])):
+                        parts.append(f"[{' '.join(map(str, pcs))}]({part})")
+                    extra = "  ← from " + " + ".join(parts)
+                label = tr("sr.combo_bar", bar=bar, pc=_pc_str(pc), forte=_forte(pc)) + extra
                 self._target_combo.addItem(label, _pc_str(pc))
+        seen_combo = set()
         for r in results:
-            label = tr("sr.combo_item", pc=_pc_str(r.pc_set), forte=_forte(r.pc_set))
-            dup = False
-            for i in range(self._target_combo.count()):
-                if self._target_combo.itemData(i) == _pc_str(r.pc_set):
-                    dup = True
-                    break
-            if not dup:
-                self._target_combo.addItem(label, _pc_str(r.pc_set))
+            if len(r.pc_set) <= 1:
+                continue
+            key = tuple(sorted(r.pc_set))
+            if key in seen_combo:
+                continue
+            seen_combo.add(key)
+            bar_str = self._bar_info.get(key, f"Bar {r.bar}")
+            label = tr("sr.combo_item", pc=_pc_str(r.pc_set), forte=_forte(r.pc_set)) + f" ({bar_str})"
+            self._target_combo.addItem(label, _pc_str(r.pc_set))
         self._target_combo.blockSignals(False)
 
         if all_lines:
@@ -428,10 +465,14 @@ class SetRelationsTab(QWidget):
         group = QGroupBox(title)
         gl = QVBoxLayout(group)
         if not items:
-            gl.addWidget(QLabel(tr("sr.none")))
+            lbl = QLabel(tr("sr.none"))
+            lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            gl.addWidget(lbl)
         else:
             for item in items:
-                gl.addWidget(QLabel(item))
+                lbl = QLabel(item)
+                lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                gl.addWidget(lbl)
         self._results_layout.addWidget(group)
 
     def _display_complex(self, cpx, nexus_info=None):
@@ -441,44 +482,92 @@ class SetRelationsTab(QWidget):
         comp = cpx["complement"]
         iv = cpx["interval_vector"]
 
+        # Deduplicate and filter out single-note sets from result sections
+        for key in ["subsets", "supersets", "z_related", "k_related", "invariants"]:
+            seen = set()
+            deduped = []
+            for s in cpx[key]:
+                if len(s) <= 1:
+                    continue
+                t = tuple(sorted(s))
+                if t not in seen:
+                    seen.add(t)
+                    deduped.append(s)
+            cpx[key] = deduped
+
         # Precompute all Forte names and IVs to avoid redundant chord.Chord() calls
         all_sets = [target, comp] + cpx["subsets"] + cpx["supersets"] + \
                    cpx["z_related"] + cpx["k_related"] + cpx["invariants"]
         forte_cache = {}
         iv_cache_all = {}
+        prime_cache = {}
+        intervals_cache = {}
+        normal_cache = {}
         for s in all_sets:
             t = tuple(sorted(s))
             if t not in forte_cache:
                 forte_cache[t] = _forte(s)
                 iv_cache_all[t] = str(interval_vector(s))
+                c = chord.Chord(s)
+                prime_cache[t] = c.primeFormString
+                normal_cache[t] = str(list(c.normalOrder))
+                # Intervals from Chords PCs order (consecutive differences, mod 12)
+                intv = [(s[i+1] - s[i]) % 12 for i in range(len(s) - 1)] if len(s) >= 2 else []
+                intervals_cache[t] = " ".join(map(str, intv))
 
         def _fmt(s):
             t = tuple(sorted(s))
+            merged = ""
+            bar_str = ""
+            if t in self._merged_sets:
+                bar_info = self._bar_info.get(t, "")
+                cons = self._merged_constituents.get(t, set())
+                if cons:
+                    parts = []
+                    for pcs, part in sorted(cons, key=lambda x: (tuple(x[0]), x[1])):
+                        parts.append(f"[{' '.join(map(str, pcs))}]({part})")
+                    merged = f" [merged {bar_info}: " + " + ".join(parts) + "]"
+                else:
+                    merged = f" [merged] ({bar_info})" if bar_info else " [merged]"
+            else:
+                bar_str = self._bar_info.get(t, "")
+                if bar_str:
+                    bar_str = f" ({bar_str})"
             return tr("sr.rel_item", pc=_pc_str(s),
-                      forte=forte_cache[t], iv=iv_cache_all[t])
+                      forte=forte_cache[t], iv=iv_cache_all[t],
+                      prime=prime_cache[t], intervals=intervals_cache[t],
+                      normal=normal_cache[t]) + merged + bar_str
 
         # Basic info
         info_group = QGroupBox(tr("sr.info_group"))
         info_layout = QVBoxLayout(info_group)
-        info_layout.addWidget(QLabel(
+        lbl_target = QLabel(
             tr("sr.info_target", pc=_pc_str(target),
-               forte=forte_cache[tuple(sorted(target))], iv=str(iv))))
-        info_layout.addWidget(QLabel(
+               forte=forte_cache[tuple(sorted(target))], iv=str(iv)))
+        lbl_target.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        info_layout.addWidget(lbl_target)
+        lbl_comp = QLabel(
             tr("sr.info_complement", pc=_pc_str(comp),
-               forte=forte_cache[tuple(sorted(comp))])))
+               forte=forte_cache[tuple(sorted(comp))]))
+        lbl_comp.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        info_layout.addWidget(lbl_comp)
 
         # intervals of target (consecutive in normal order)
         normal = list(chord.Chord(target).normalOrder)
         intervals = [normal[i+1] - normal[i] for i in range(len(normal) - 1)] if len(normal) >= 2 else []
-        info_layout.addWidget(QLabel(
+        lbl_intervals = QLabel(
             tr("sr.info_intervals", pc=_pc_str(normal),
-               intervals=" ".join(map(str, intervals)))))
+               intervals=" ".join(map(str, intervals))))
+        lbl_intervals.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        info_layout.addWidget(lbl_intervals)
 
         if nexus_info:
             candidates = nexus_info.get("nexus_candidates", [nexus_info.get("nexus")])
             nexus_label = ", ".join(_pc_str(c) for c in candidates)
-            info_layout.addWidget(QLabel(
-                tr("sr.info_nexus", pc=nexus_label, score=nexus_info["score"])))
+            lbl_nexus = QLabel(
+                tr("sr.info_nexus", pc=nexus_label, score=nexus_info["score"]))
+            lbl_nexus.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            info_layout.addWidget(lbl_nexus)
         self._results_layout.addWidget(info_group)
 
         # Relationships
@@ -533,14 +622,41 @@ class SetRelationsTab(QWidget):
         group = QGroupBox(tr("sr.trans_group"))
         gl = QVBoxLayout(group)
 
+        def _bar_parts_str(s):
+            """Aggregate bar/part info for a matched set s from _bar_info."""
+            key = tuple(sorted(s))
+            m = ""
+            if key in self._merged_sets:
+                bar_info = self._bar_info.get(key, "")
+                cons = self._merged_constituents.get(key, set())
+                if cons:
+                    parts = []
+                    for pcs, part in sorted(cons, key=lambda x: (tuple(x[0]), x[1])):
+                        parts.append(f"[{' '.join(map(str, pcs))}]({part})")
+                    m = f" [merged {bar_info}: " + " + ".join(parts) + "]"
+                else:
+                    m = f" [merged] ({bar_info})" if bar_info else " [merged]"
+            return m
+
         # T_n section (only show non-empty levels)
         tn_found = {n: ms for n, ms in tn_matches.items() if ms}
         if tn_found:
-            gl.addWidget(QLabel(tr("sr.tn_header")))
+            lbl_hdr = QLabel(tr("sr.tn_header"))
+            lbl_hdr.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            gl.addWidget(lbl_hdr)
             for n in sorted(tn_found):
                 t_form = _transpose(target, n)
-                gl.addWidget(QLabel(
-                    tr("sr.tn_found", n=n, form=_pc_bracket(t_form), count=len(tn_found[n]))))
+                # Collect unique bar/part info across all matches at this T_n level
+                bar_parts = set()
+                for ms in tn_found[n]:
+                    bp = _bar_parts_str(ms)
+                    if bp:
+                        bar_parts.add(bp)
+                bp_str = "  (" + "; ".join(sorted(bar_parts)) + ")" if bar_parts else ""
+                lbl_tn = QLabel(
+                    tr("sr.tn_found", n=n, form=_pc_bracket(t_form), count=len(tn_found[n])) + bp_str)
+                lbl_tn.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                gl.addWidget(lbl_tn)
         else:
             gl.addWidget(QLabel(tr("sr.tn_none")))
 
@@ -552,9 +668,18 @@ class SetRelationsTab(QWidget):
             ("RI", ri_matches, ri_form),
         ]:
             if matches:
-                gl.addWidget(QLabel(
+                # Collect unique bar/part info across all matches
+                bar_parts = set()
+                for ms in matches:
+                    bp = _bar_parts_str(ms)
+                    if bp:
+                        bar_parts.add(bp)
+                bp_str = "  (" + "; ".join(sorted(bar_parts)) + ")" if bar_parts else ""
+                lbl_trans = QLabel(
                     tr("sr.trans_found", label=label, form=_pc_bracket(form),
-                       n=len(matches))))
+                       n=len(matches)) + bp_str)
+                lbl_trans.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                gl.addWidget(lbl_trans)
             else:
                 gl.addWidget(QLabel(
                     tr("sr.trans_none", label=label, form=_pc_bracket(form))))

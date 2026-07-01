@@ -227,14 +227,21 @@ def annotate_score(score, start_measure: int, end_measure: int):
 
 def _add_pc_forte_lyrics(stream):
     """Add pitch-class and Forte lyrics to an existing stream. Modifies in place."""
+    # Clear any existing lyrics first
+    for n in stream.recurse().notes:
+        for ly in list(getattr(n, 'lyrics', [])):
+            n.lyrics.remove(ly)
     for n in stream.recurse().notes:
         if isinstance(n, note.Note):
             n.addLyric(str(n.pitch.pitchClass))
             n.addLyric(n.nameWithOctave)
         elif isinstance(n, chord.Chord):
-            sorted_pitches = sorted(n.pitches)
-            for p in sorted_pitches:
+            # Grouped: all pitch classes first, then all names, then Forte.
+            # Keeps original pitch order from the score (n.pitches).
+            pitches_desc = sorted(n.pitches, reverse=True)
+            for p in pitches_desc:
                 n.addLyric(str(p.pitchClass))
+            for p in pitches_desc:
                 n.addLyric(p.nameWithOctave)
             n.addLyric(n.forteClass)
 

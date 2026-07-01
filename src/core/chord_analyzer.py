@@ -11,6 +11,8 @@ class ChordResult:
     part_name: str
     notes: str
     pc_set: list[int]
+    normal_order: list[int]
+    prime_form: str
     forte_class: str
     pitch_range: str
 
@@ -57,15 +59,21 @@ def extract_chords(score, selected, bar_range: tuple,
 
                 if is_note:
                     pitches = [element.pitch]
-                    notes_str = element.pitch.nameWithOctave
+                    notes_str = element.pitch.nameWithOctave  # single note, no sorting needed
                     # Wrap single note as chord for Forte/normalOrder
                     c = chord.Chord([element.pitch])
-                    pc_set = list(c.normalOrder)
+                    pc_set = [element.pitch.pitchClass]
+                    normal_order = list(c.normalOrder)
+                    prime_form = c.primeFormString
                     forte_class = c.forteClass
                 else:
                     pitches = element.pitches
-                    notes_str = " ".join(p.nameWithOctave for p in pitches)
-                    pc_set = list(element.normalOrder)
+                    # Explicit descending order by MIDI (highest pitch first)
+                    pitches_desc = sorted(pitches, key=lambda p: -p.midi)
+                    notes_str = " ".join(p.nameWithOctave for p in pitches_desc)
+                    pc_set = [p.pitchClass for p in pitches_desc]
+                    normal_order = list(element.normalOrder)
+                    prime_form = element.primeFormString
                     forte_class = element.forteClass
 
                 pitch_min = min(p.midi for p in pitches)
@@ -77,6 +85,8 @@ def extract_chords(score, selected, bar_range: tuple,
                     part_name=qual_name,
                     notes=notes_str,
                     pc_set=pc_set,
+                    normal_order=normal_order,
+                    prime_form=prime_form,
                     forte_class=forte_class,
                     pitch_range=f"{pitch_min}~{pitch_max}",
                 ))
@@ -86,24 +96,46 @@ def extract_chords(score, selected, bar_range: tuple,
 
 def format_as_markdown(results: list[ChordResult]) -> str:
     """Format chord analysis results as a Markdown table."""
+    bars = sorted(set(r.bar for r in results))
     lines = [
-        "| Bar | Offset | Part Name | Notes | Normal Order | Forte Class | Pitch Range |",
-        "|-----|--------|-----------|-------|--------------|-------------|-------------|",
+        f"<!-- v3: {len(results)} chords, {len(bars)} bars -->",
+        "",
+        "| Bar | Offset | Part Name | Notes | Chord PCs | Normal Order | Prime Form | Forte Class | Pitch Range |",
+        "|-----|--------|-----------|-------|-----------|--------------|------------|-------------|-------------|",
     ]
-    for r in results:
-        lines.append(
-            f"| {r.bar} | {r.offset} | {r.part_name} | "
-            f"{r.notes} | {r.pc_set} | {r.forte_class} | {r.pitch_range} |"
-        )
+    for bar in bars:
+        bar_results = [r for r in results if r.bar == bar]
+        for r in bar_results:
+            lines.append(
+                f"| {r.bar} | {r.offset} | {r.part_name} | "
+                f"{r.notes} | {r.pc_set} | {r.normal_order} | {r.prime_form} | {r.forte_class} | {r.pitch_range} |"
+            )
+        # Add merged row for this bar
+        all_pcs = set()
+        part_names = set()
+        constituents = []
+        for r in bar_results:
+            all_pcs.update(r.pc_set)
+            part_names.add(r.part_name)
+            pcs_str = " ".join(map(str, r.pc_set))
+            constituents.append(f"[{pcs_str}]({r.part_name})")
+        merged_pcs = sorted(all_pcs)
+        if len(merged_pcs) > 1:
+            c = chord.Chord(merged_pcs)
+            merged_notes = "merged: " + " + ".join(constituents)
+            lines.append(
+                f"| {bar} | merged | {'/'.join(sorted(part_names))} | "
+                f"{merged_notes} | {list(c.normalOrder)} | {list(c.normalOrder)} | {c.primeFormString} | {c.forteClass} | |"
+            )
     return "\n".join(lines)
 
 
 def format_as_csv(results: list[ChordResult]) -> str:
     """Format chord analysis results as CSV."""
-    lines = ["Bar,Offset,Part Name,Notes,Normal Order,Forte Class,Pitch Range"]
+    lines = ["Bar,Offset,Part Name,Notes,Chord PCs,Normal Order,Prime Form,Forte Class,Pitch Range"]
     for r in results:
         lines.append(
             f'{r.bar},{r.offset},"{r.part_name}","{r.notes}",'
-            f'"{r.pc_set}","{r.forte_class}","{r.pitch_range}"'
+            f'"{r.pc_set}","{r.normal_order}","{r.prime_form}","{r.forte_class}","{r.pitch_range}"'
         )
     return "\n".join(lines)

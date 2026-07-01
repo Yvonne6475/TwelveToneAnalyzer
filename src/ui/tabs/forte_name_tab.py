@@ -186,7 +186,7 @@ class ForteNameTab(QWidget):
         if not path:
             return
         with open(path, 'w', encoding='utf-8') as f:
-            f.write("Input Set,Normal Order,Intervals,Interval Vector,Prime Form,Forte Class,P,I,R,RI\n")
+            f.write("Chord PCs,Normal Order,Intervals,Interval Vector,Prime Form,Forte Class,P,I,R,RI\n")
             for r in self._results:
                 f.write(
                     f'"{" ".join(map(str, r["input"]))}",'
@@ -219,24 +219,27 @@ class ForteNameTab(QWidget):
 
         # 1) Merge by bar: union of all parts' pc_sets within the same measure
         bar_sets = {}
+        bar_parts = {}
         for r in chord_tab._results:
+            if len(r.pc_set) <= 1:
+                continue
             bar_sets.setdefault(r.bar, set()).update(r.pc_set)
+            if r.part_name not in bar_parts.get(r.bar, set()):
+                bar_parts.setdefault(r.bar, set()).add(r.part_name)
         bar_items = []
         for bar in sorted(bar_sets):
             pc = sorted(bar_sets[bar])
             if pc:
                 c = chord.Chord(pc)
-                bar_items.append({"pcs": pc, "bar": bar, "forte": c.forteClass})
+                parts = ", ".join(sorted(bar_parts.get(bar, set())))
+                bar_items.append({"pcs": pc, "bar": bar, "parts": parts, "forte": c.forteClass})
 
-        # 2) Individual unique pc-sets
-        seen = set()
+        # 2) Individual chord/note items (one per ChordResult, each with its bar and part)
         indiv_items = []
         for r in chord_tab._results:
-            key = tuple(sorted(r.pc_set))
-            if key not in seen:
-                seen.add(key)
-                indiv_items.append({"pcs": r.pc_set, "bar": r.bar, "forte": r.forte_class})
-        indiv_items.sort(key=lambda x: (len(x["pcs"]), x["pcs"]))
+            if len(r.pc_set) <= 1:
+                continue
+            indiv_items.append({"pcs": r.pc_set, "bar": r.bar, "part": r.part_name, "forte": r.forte_class})
 
         # bar-merged first, then individual
         all_items = bar_items + indiv_items
@@ -257,11 +260,13 @@ class ForteNameTab(QWidget):
         for idx, item in enumerate(all_items):
             pc_str = " ".join(map(str, item["pcs"]))
             if idx < len(bar_items):
+                parts = item.get("parts", "")
                 label = tr("forte.bar_merge_item", bar=item["bar"],
-                           pc=pc_str, forte=item["forte"])
+                           pc=pc_str, forte=item["forte"]) + f" ({parts})"
             else:
+                part = item.get("part", "")
                 label = tr("forte.chord_item", bar=item["bar"],
-                           pc=pc_str, forte=item["forte"])
+                           pc=pc_str, forte=item["forte"]) + f" ({part})"
             lst.addItem(label)
             lst.item(lst.count() - 1).setCheckState(Qt.Checked)
             lst.item(lst.count() - 1).setData(Qt.UserRole, pc_str)

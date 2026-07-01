@@ -7,7 +7,9 @@ from PyQt5.QtWidgets import (
     QHeaderView, QTextEdit, QFileDialog, QMessageBox,
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor
 
+from music21 import chord
 from src.core.chord_analyzer import extract_chords, format_as_markdown, format_as_csv
 from src.core.score_analyzer import diagnose_all_parts, get_measure_range
 from src.ui.widgets.score_opener import setup_open_menu
@@ -211,26 +213,75 @@ class ChordTab(QWidget):
         from PyQt5.QtWidgets import QApplication; QApplication.processEvents()
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
-            self._results = extract_chords(self._score, selected, (start, end), name_map=name_map)
-            self._populate_table()
-            self._btn_export_md.setEnabled(True)
-            self._btn_export_csv.setEnabled(True)
-            self._btn_show_score.setEnabled(True)
-            self._btn_save_png.setEnabled(True)
-        except Exception as e:
-            QMessageBox.critical(self, tr("chord.extract_failed"), str(e))
-        self._btn_extract.setEnabled(True); QApplication.restoreOverrideCursor()
+            try:
+                self._results = extract_chords(self._score, selected, (start, end), name_map=name_map)
+                self._populate_table()
+                self._btn_export_md.setEnabled(True)
+                self._btn_export_csv.setEnabled(True)
+                self._btn_show_score.setEnabled(True)
+                self._btn_save_png.setEnabled(True)
+            except Exception as e:
+                QMessageBox.critical(self, tr("chord.extract_failed"), str(e))
+        finally:
+            self._btn_extract.setEnabled(True)
+            # Force restore cursor in case of stack imbalance
+            while QApplication.overrideCursor() is not None:
+                QApplication.restoreOverrideCursor()
 
     def _populate_table(self):
-        self._table.setRowCount(len(self._results))
-        for row, r in enumerate(self._results):
-            self._table.setItem(row, 0, QTableWidgetItem(str(r.bar)))
-            self._table.setItem(row, 1, QTableWidgetItem(str(r.offset)))
-            self._table.setItem(row, 2, QTableWidgetItem(r.part_name))
-            self._table.setItem(row, 3, QTableWidgetItem(r.notes))
-            self._table.setItem(row, 4, QTableWidgetItem(str(r.pc_set)))
-            self._table.setItem(row, 5, QTableWidgetItem(r.forte_class))
-            self._table.setItem(row, 6, QTableWidgetItem(r.pitch_range))
+        # Group results by bar
+        bar_groups = {}
+        for r in self._results:
+            bar_groups.setdefault(r.bar, []).append(r)
+        # Build row list: individual + merged per bar
+        rows = []  # list of dicts or ChordResult
+        for bar in sorted(bar_groups):
+            bar_rs = bar_groups[bar]
+            for r in bar_rs:
+                rows.append(("indiv", r))
+            # Compute merged
+            all_pcs = set()
+            part_names = set()
+            constituents = []
+            for r in bar_rs:
+                all_pcs.update(r.pc_set)
+                part_names.add(r.part_name)
+                pcs_str = " ".join(map(str, r.pc_set))
+                constituents.append(f"[{pcs_str}]({r.part_name})")
+            merged_pcs = sorted(all_pcs)
+            if len(merged_pcs) > 1:
+                c = chord.Chord(merged_pcs)
+                rows.append(("merged", {
+                    "bar": bar,
+                    "offset": "merged",
+                    "part_name": "\n".join(sorted(part_names)),
+                    "notes": "merged: " + " + ".join(constituents),
+                    "pc_set": str(list(c.normalOrder)),
+                    "normal_order": str(list(c.normalOrder)),
+                    "prime_form": c.primeFormString,
+                    "forte_class": c.forteClass,
+                    "pitch_range": "",
+                }))
+        self._table.setRowCount(len(rows))
+        self._table.setWordWrap(True)
+        for row_idx, (kind, data) in enumerate(rows):
+            if kind == "indiv":
+                r = data
+                vals = [str(r.bar), str(r.offset), r.part_name, r.notes,
+                        str(r.pc_set), str(r.normal_order), r.prime_form,
+                        r.forte_class, r.pitch_range]
+            else:
+                d = data
+                vals = [str(d["bar"]), d["offset"], d["part_name"], d["notes"],
+                        d["pc_set"], d["normal_order"], d["prime_form"],
+                        d["forte_class"], d["pitch_range"]]
+            for col, val in enumerate(vals):
+                item = QTableWidgetItem(val)
+                if kind == "merged":
+                    item.setBackground(QColor("#f0f0e0"))
+                    item.setToolTip("Bar merged set (union of all chords in this bar)")
+                self._table.setItem(row_idx, col, item)
+        self._table.resizeRowsToContents()
 
     def _on_export_md(self):
         if not self._results:
