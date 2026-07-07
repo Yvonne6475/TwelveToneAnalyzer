@@ -5,7 +5,7 @@
 ; Optimizations (2026-06-15):
 ;   1. RequestExecutionLevel admin
 ;   2. LZMA solid + 64MB dict
-;   3. InstallDir -> D:\
+;   3. InstallDir -> %PROGRAMFILES64%\
 ;   4. Exclude Qt dev DLLs, libs, unused translations
 ;   5. CRCCheck off
 ;
@@ -40,7 +40,6 @@ OutFile "TwelveToneAnalyzer_Setup_v${VERSION}.exe"
 
 ; (3) Default install to D:\
 InstallDir "$PROGRAMFILES64\${PRODUCT}"
-InstallDirRegKey HKLM "Software\${PRODUCT}" "InstallDir"
 
 ; Modern UI
 !include "MUI2.nsh"
@@ -81,10 +80,7 @@ Function .onInit
     Abort
   ${EndIf}
 
-  ReadRegStr $R0 HKLM "Software\${PRODUCT}" "InstallDir"
-  ${If} $R0 != ""
-    StrCpy $INSTDIR $R0
-  ${EndIf}
+
 
   !ifdef RELEASE
     DetailPrint "Installer mode: ${COMPRESS_MODE}"
