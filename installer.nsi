@@ -40,6 +40,7 @@ OutFile "TwelveToneAnalyzer_Setup_v${VERSION}.exe"
 
 ; (3) Default install to D:\
 InstallDir "$PROGRAMFILES64\${PRODUCT}"
+InstallDirRegKey HKLM "Software\${PRODUCT}" "InstallDir"
 
 ; Modern UI
 !include "MUI2.nsh"
