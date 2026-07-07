@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 from PyInstaller.utils.hooks import collect_dynamic_libs
 from PyInstaller.utils.hooks import collect_all
 
@@ -69,6 +70,10 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=['pyi_rth_qt_dll.py', 'pyi_rth_music21.py'],
     excludes=[
+        # Dev / build tools — not needed at runtime
+        'setuptools',
+        'pip',
+        'pkg_resources',
         # Qt dev / build tools — not needed at runtime
         'PyQt5.pylupdate', 'PyQt5.pylupdate_main',
         'PyQt5.pyrcc', 'PyQt5.pyrcc_main',
@@ -112,6 +117,25 @@ exe = EXE(
 # Strip QML files regardless of how they got collected (3-tuple TOC format)
 a.datas = [t for t in a.datas if '/qml/' not in t[1].replace('\\', '/').lower()]
 a.binaries = [t for t in a.binaries if '/qml/' not in t[1].replace('\\', '/').lower()]
+
+# --- Exclude test/fixture data from scipy, numpy, matplotlib, librosa ---
+# These bloat the bundle by hundreds of MB without being used at runtime.
+_exclude_test_patterns = [
+    '/tests/', '/test_data/', '/testing/',
+    '.examples/',  # scipy examples
+    '.npz',        # numpy/scipy test arrays
+    '.npy',        # numpy test arrays
+]
+
+def _keep_production(data_tuple):
+    src_lower = data_tuple[0].replace('\\', '/').lower()
+    for pat in _exclude_test_patterns:
+        if pat in src_lower:
+            return False
+    return True
+
+a.datas = [t for t in a.datas if _keep_production(t)]
+a.binaries = [t for t in a.binaries if _keep_production(t)]
 
 coll = COLLECT(
     exe,
