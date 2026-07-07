@@ -39,7 +39,7 @@ Name "${PRODUCT} ${VERSION}"
 OutFile "TwelveToneAnalyzer_Setup_v${VERSION}.exe"
 
 ; (3) Default install to D:\
-InstallDir "D:\${PRODUCT}"
+InstallDir "$PROGRAMFILES64\${PRODUCT}"
 InstallDirRegKey HKLM "Software\${PRODUCT}" "InstallDir"
 
 ; Modern UI

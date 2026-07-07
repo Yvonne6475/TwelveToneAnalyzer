@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
+import sys
 from PyInstaller.utils.hooks import collect_dynamic_libs
 from PyInstaller.utils.hooks import collect_all
 
@@ -119,7 +120,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
-    disable_windowed_traceback=False,
+    disable_windowed_traceback=True,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
@@ -132,10 +133,7 @@ a.binaries = [t for t in a.binaries if '/qml/' not in t[1].replace('\\', '/').lo
 # --- Exclude test/fixture data from scipy, numpy, matplotlib, librosa ---
 # These bloat the bundle by hundreds of MB without being used at runtime.
 _exclude_test_patterns = [
-    '/tests/', '/test_data/', '/testing/',
-    '.examples/',  # scipy examples
-    '.npz',        # numpy/scipy test arrays
-    '.npy',        # numpy test arrays
+    '/tests/', '/test_data/', '/testing/', '/examples/',
 ]
 
 def _keep_production(data_tuple):
