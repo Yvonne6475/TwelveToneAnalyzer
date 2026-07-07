@@ -279,6 +279,7 @@ class AudioTab(QWidget):
         dlg_layout = QVBoxLayout(dlg)
         dlg_layout.addWidget(QLabel(tr("dialog.url_label")))
         url_edit = QLineEdit()
+        url_edit.setPlaceholderText(tr("dialog.url_placeholder"))
         dlg_layout.addWidget(url_edit)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(dlg.accept)
