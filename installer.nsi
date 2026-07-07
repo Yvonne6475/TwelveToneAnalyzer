@@ -64,6 +64,15 @@ InstallDirRegKey HKLM "Software\${PRODUCT}" "InstallDir"
 
 ; Pre-flight: detect running instance
 Function .onInit
+  ; Check VC++ Redistributable (required by PyQt5)
+  ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+  IfErrors 0 +3
+    MessageBox MB_ICONINFORMATION|MB_OK       "Microsoft Visual C++ Redistributable not detected.$\r$\n$\r$\n       If the app fails to start with 'VCRUNTIME140.dll missing', please install:$\r$\n       https://aka.ms/vs/17/release/vc_redist.x64.exe"
+    Goto +2
+  ${If} $0 != 1
+    MessageBox MB_ICONINFORMATION|MB_OK       "Microsoft Visual C++ Redistributable not detected.$\r$\n$\r$\n       If the app fails to start with 'VCRUNTIME140.dll missing', please install:$\r$\n       https://aka.ms/vs/17/release/vc_redist.x64.exe"
+  ${EndIf}
+
   nsExec::ExecToStack 'cmd /c tasklist /fi "IMAGENAME eq ${EXE_NAME}" /nh 2>nul | find /i "${EXE_NAME}"'
   Pop $0
   ${If} $0 == 0
