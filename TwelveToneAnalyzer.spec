@@ -18,6 +18,17 @@ hiddenimports = ['matplotlib.backends.backend_qt5agg', 'PyQt5.sip', 'matplotlib.
     'music21.analysis', 'music21.analysis.discrete',
     'librosa', 'scipy.interpolate', 'scipy.signal', 'numpy']
 binaries += collect_dynamic_libs('PyQt5')
+# Explicitly bundle Python DLL so the bootloader can find it
+_py_dll_name = f'python{sys.version_info.major}{sys.version_info.minor}.dll'
+_py_dll_path = None
+for _d in [sys.prefix, os.path.dirname(sys.executable), os.environ.get('python3_ROOT_DIR', '')]:
+    _candidate = os.path.join(_d, _py_dll_name)
+    if os.path.exists(_candidate):
+        _py_dll_path = _candidate
+        break
+if _py_dll_path:
+    binaries += [(_py_dll_path, '.')]
+
 tmp_ret = collect_all('PyQt5')
 # Collect all from scipy so C extensions like _cdflib are bundled
 tmp_ret2 = collect_all('scipy')
