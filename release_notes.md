@@ -1,26 +1,21 @@
-## Twelve-Tone Music Analyzer v1.4.1
-
-### ✨ New Features
-- **Merge Parts & Measures Search** — select arbitrary parts and bar ranges, merge all notes into a chronological PC sequence, find complete 12-tone rows, and match against confirmed row forms (P/I/R/RI)
-- **Per-bar part breakdown** shows each voice's pitch classes, Forte class, and unique PCs per measure
-- **Per-part unique PC display** grouped horizontally for quick cross-voice comparison
-- **Row form matching** — merged 12-PC sequence is checked against all 48 forms of the confirmed row
+## Twelve-Tone Music Analyzer v1.4.2
 
 ### 🔧 Improvements
-- Merged PC sequence now sorted by bar → offset for correct chronological order
-- Unique PCs displayed in appearance order (not sorted by pitch class value)
-- 48-form subset search uses correct inversion formula: `(2×pivot − p) % 12` matching the matrix calculation
-- Form labels now show the correct transposition number based on each form's starting pitch
+- **Disabled windowed traceback** — crashes show a friendly dialog instead of a console window
+- **Windows default install path** changed to `%PROGRAMFILES64%` (was `D:\`)
+- **URL prompts** simplified to `.wav` format examples
+- **Audio URL dialog** now shows placeholder text
 
 ### 🐛 Bug Fixes
-- Fixed circular import between `i18n.py` and `score_opener.py`
-- Fixed `QCheckBox` and `music21.chord` missing imports in twelve_tone_tab.py
-- Fixed I/RI form calculation in Subset Search (was using wrong inversion axis)
+- **Windows "Error loading Python DLL"** — `python39.dll` now explicitly bundled in the executable directory
+- **Windows build size reduced** — test directories (`/tests/`, `/test_data/`, `/examples/`) excluded from scipy/numpy/matplotlib, saving ~500MB
+- **VC++ Runtime check** — NSIS installer now detects missing VC++ redistributable and warns the user
+- **Portable ZIP** now excludes `.pyc` and `__pycache__`
 
 ### 📦 Installers
 
-| Platform | File | Size |
-|----------|------|------|
-| 🍎 macOS | `TwelveToneAnalyzer_Setup_v1.4.1.dmg` | ~212 MB |
-| 🪟 Windows | `TwelveToneAnalyzer_Setup_v1.4.1.exe` | |
-| 📦 Windows Portable | `TwelveToneAnalyzer_Portable_v1.4.1.zip` | |
+| Platform | File |
+|----------|------|
+| 🍎 macOS | `TwelveToneAnalyzer_Setup_v1.4.2.dmg` |
+| 🪟 Windows | `TwelveToneAnalyzer_Setup_v1.4.2.exe` |
+| 📦 Windows Portable | `TwelveToneAnalyzer_Portable_v1.4.2.zip` |
