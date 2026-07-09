@@ -19,6 +19,24 @@ import os
 import pathlib
 
 
+def _setup_scratch_dir():
+    """Ensures music21 scratch directory exists before music21 loads.
+
+    On Windows, music21 reads `directoryScratch` from user preferences
+    (registry / .music21rc). If the configured path does not exist,
+    music21 raises a fatal error. This function creates the directory
+    so the first import succeeds.
+    """
+    try:
+        import tempfile
+        scratch = os.environ.get("MUSIC21_SCRATCH_DIR") or                   os.path.join(tempfile.gettempdir(), "music21")
+        os.makedirs(scratch, exist_ok=True)
+        os.environ["MUSIC21_SCRATCH_DIR"] = scratch
+    except Exception:
+        pass
+
+_setup_scratch_dir()
+
 def _patch_music21_source_path():
     """Redirect music21's source-file detection to sys._MEIPASS."""
     if not getattr(sys, 'frozen', False):
