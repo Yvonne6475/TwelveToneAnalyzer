@@ -306,6 +306,13 @@ class MergeSearchDialog(QDialog):
                 unique_pcs = list(dict.fromkeys(pcs))  # preserve order, dedup
                 fc = chord.Chord(unique_pcs).forteClass if len(unique_pcs) > 1 else ""
                 output.append(f"  {pn}: {' '.join(map(str, unique_pcs))}  Forte: {fc}" if fc else f"  {pn}: {' '.join(map(str, unique_pcs))}")
+            # Bar merged (union of all parts in this bar)
+            bar_all_pcs = []
+            for pcs in bar_cons.values():
+                bar_all_pcs.extend(pcs)
+            bar_merged = list(dict.fromkeys(bar_all_pcs))
+            bar_fc = chord.Chord(bar_merged).forteClass if len(bar_merged) > 1 else ""
+            output.append(f"  Merged ({len(bar_merged)}): {' '.join(map(str, bar_merged))}  Forte: {bar_fc}" if bar_fc else f"  Merged ({len(bar_merged)}): {' '.join(map(str, bar_merged))}")
 
         # --- Merged PC sequence ---
         unique_count = len(set(pc_seq))
@@ -372,6 +379,174 @@ class MergeSearchDialog(QDialog):
         self._result.setText("\n".join(output))
 
 
+
+class CustomMergeDialog(QDialog):
+    """Dialog: select arbitrary parts + bar list, merge into a single set."""
+
+    def __init__(self, score, main_window=None, row=None):
+        super().__init__(main_window)
+        self._score = score
+        self._main_window = main_window
+        self._row = row
+        self._part_checks = {}
+        self.setWindowTitle(tr("tt.custom_merge_title"))
+        self.setMinimumSize(650, 500)
+        self._setup_ui()
+
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        # Part selection
+        part_group = QGroupBox(tr("chord.part_label"))
+        part_layout = QHBoxLayout(part_group)
+        diagnostics = diagnose_all_parts(self._score) if self._score else []
+        self._part_checks = {}
+        for d in diagnostics:
+            cb = QCheckBox(d.part_name if d.part_name else f"Part {d.index+1}")
+            cb.setChecked(True)
+            cb.setProperty("part_idx", d.index)
+            self._part_checks[f"{d.index}"] = cb
+            part_layout.addWidget(cb)
+        layout.addWidget(part_group)
+
+        # Bar list input
+        bar_row = QHBoxLayout()
+        bar_row.addWidget(QLabel(tr("tt.custom_bars_label")))
+        self._bars_input = QLineEdit()
+        self._bars_input.setPlaceholderText("1, 3, 5-10, 12, 15-20")
+        self._bars_input.setText("1-30")
+        bar_row.addWidget(self._bars_input)
+        layout.addLayout(bar_row)
+
+        # Merge button
+        self._btn_merge = QPushButton(tr("tt.btn_custom_merge"))
+        self._btn_merge.setProperty("accent", "teal")
+        self._btn_merge.clicked.connect(self._do_merge)
+        layout.addWidget(self._btn_merge)
+
+        # Results
+        self._result = QTextEdit()
+        self._result.setReadOnly(True)
+        layout.addWidget(self._result, 1)
+
+        # Close
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        close_btn = QPushButton(tr("forte.btn_close"))
+        close_btn.clicked.connect(self.close)
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+
+    def _parse_bars(self, text: str) -> list[int]:
+        """Parse bar list: '1,3,5-10,12' -> [1,3,5,6,7,8,9,10,12]."""
+        bars = set()
+        for part in text.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if "-" in part:
+                try:
+                    a, b = part.split("-", 1)
+                    lo, hi = int(a.strip()), int(b.strip())
+                    bars.update(range(lo, hi + 1))
+                except ValueError:
+                    pass
+            else:
+                try:
+                    bars.add(int(part))
+                except ValueError:
+                    pass
+        return sorted(bars)
+
+    def _do_merge(self):
+        if not self._score:
+            self._result.setText(tr("tt.merge_no_score"))
+            return
+
+        selected_parts = set()
+        for key, cb in self._part_checks.items():
+            if cb.isChecked():
+                pi = cb.property("part_idx")
+                if pi is not None:
+                    selected_parts.add(int(pi))
+        if not selected_parts:
+            self._result.setText(tr("tt.merge_no_part"))
+            return
+
+        bars = self._parse_bars(self._bars_input.text().strip())
+        if not bars:
+            self._result.setText(tr("tt.custom_bars_invalid"))
+            return
+
+        from music21 import note as m21note
+        from collections import OrderedDict
+
+        # Collect notes by (part, bar)
+        data = OrderedDict()  # part_name -> {bar -> [pc]}
+        all_pcs = []
+        for pi, part in enumerate(self._score.parts):
+            if pi not in selected_parts:
+                continue
+            pn = part.partName if part.partName else f"Part {pi+1}"
+            data[pn] = OrderedDict()
+            for m in part.getElementsByClass("Measure"):
+                bn = m.number
+                if bn not in bars:
+                    continue
+                for el in m.recurse():
+                    if isinstance(el, m21note.Note):
+                        data[pn].setdefault(bn, []).append(el.pitch.pitchClass)
+                        all_pcs.append(el.pitch.pitchClass)
+                    elif isinstance(el, chord.Chord):
+                        for p in el.pitches:
+                            data[pn].setdefault(bn, []).append(p.pitchClass)
+                            all_pcs.append(p.pitchClass)
+
+        output = []
+        selected_bars_str = ", ".join(str(b) for b in bars)
+        selected_parts_str = ", ".join(
+            cb.text() for cb in self._part_checks.values() if cb.isChecked()
+        )
+        output.append(f"Selected: {selected_parts_str} | Bars: {selected_bars_str}\n")
+
+        # Per-part / per-bar breakdown
+        for pn in data:
+            output.append(f"--- {pn} ---")
+            for bn in data[pn]:
+                pcs = data[pn][bn]
+                uniq = list(dict.fromkeys(pcs))
+                fc = chord.Chord(uniq).forteClass if len(uniq) > 1 else ""
+                output.append(f"  Bar {bn}: {' '.join(map(str, uniq))}  Forte: {fc}" if fc else f"  Bar {bn}: {' '.join(map(str, uniq))}")
+
+        # Merged result
+        merged = list(dict.fromkeys(all_pcs))
+        output.append(f"\n=== Merged Result ({len(merged)} unique) ===")
+        output.append(f"PCs: {' '.join(map(str, merged))}")
+        if len(merged) > 1:
+            c = chord.Chord(sorted(merged))
+            output.append(f"Sorted: {' '.join(map(str, sorted(merged)))}")
+            output.append(f"Prime: {c.primeFormString}  Forte: {c.forteClass}")
+
+        # Constituents: per-part unique PCs
+        part_total = OrderedDict()
+        for pn in data:
+            all_pn = []
+            for bn in data[pn]:
+                all_pn.extend(data[pn][bn])
+            part_total[pn] = list(dict.fromkeys(all_pn))
+        parts_list = []
+        for pn in part_total:
+            uniq = part_total[pn]
+            fc = chord.Chord(uniq).forteClass if len(uniq) > 1 else ""
+            label = f"[{' '.join(map(str, uniq))}]({pn})"
+            if fc:
+                label += f" {fc}"
+            parts_list.append(label)
+        output.append("Constituents: " + " + ".join(parts_list))
+
+        self._result.setText("\n".join(output))
+
+
 class TwelveToneTab(QWidget):
     def __init__(self, main_window=None):
         super().__init__()
@@ -412,6 +587,12 @@ class TwelveToneTab(QWidget):
         self._btn_merge_search.setProperty("accent", "teal")
         self._btn_merge_search.clicked.connect(self._on_open_merge_search)
         top_bar.addWidget(self._btn_merge_search)
+
+        self._btn_custom_merge = QPushButton(tr("tt.custom_merge_title"))
+        self._btn_custom_merge.setFont(big_font)
+        self._btn_custom_merge.setProperty("accent", "teal")
+        self._btn_custom_merge.clicked.connect(self._on_open_custom_merge)
+        top_bar.addWidget(self._btn_custom_merge)
 
         top_bar.addStretch()
         layout.addLayout(top_bar)
@@ -606,6 +787,16 @@ class TwelveToneTab(QWidget):
             dlg.exec_()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"SubsetSearchDialog error:\n{type(e).__name__}: {e}")
+
+    def _on_open_custom_merge(self):
+        if not self._main_window or not hasattr(self._main_window, '_score') or not self._main_window._score:
+            QMessageBox.warning(self, tr("tt.custom_merge_title"), tr("tt.merge_no_score"))
+            return
+        try:
+            dlg = CustomMergeDialog(self._main_window._score, self._main_window, row=self._row)
+            dlg.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"CustomMergeDialog error:\n{type(e).__name__}: {e}")
 
     def _on_open_merge_search(self):
         if not self._main_window or not hasattr(self._main_window, '_score') or not self._main_window._score:
