@@ -85,6 +85,11 @@ class VisualizationTab(QWidget):
         self._btn_save.clicked.connect(self._on_save_png)
         left_layout.addWidget(self._btn_save)
 
+        self._hint_label = QLabel(tr("viz.format_hint"))
+        self._hint_label.setStyleSheet("color: #999; font-size: 11px; padding: 4px 2px;")
+        self._hint_label.setWordWrap(True)
+        left_layout.addWidget(self._hint_label)
+
         left_layout.addStretch()
         main_layout.addWidget(left, 1)
 
@@ -183,10 +188,21 @@ class VisualizationTab(QWidget):
             return None
         fd, path = tempfile.mkstemp(suffix='.png', prefix='tta_chart_')
         os.close(fd)
+        for ax in fig.axes:
+            ax.minorticks_off()
+        ok = False
         try:
             fig.savefig(path, dpi=150, bbox_inches='tight')
+            ok = True
         except TypeError:
-            fig.savefig(path, dpi=150)
+            try:
+                fig.savefig(path, dpi=150)
+                ok = True
+            except TypeError:
+                pass
+        if not ok:
+            os.remove(path)
+            return None
         return path
 
     def _on_generate(self):
@@ -250,6 +266,18 @@ class VisualizationTab(QWidget):
     def _generate_plot(self, plot_type: int, part_idx: int, start: int, end: int):
         """Create plot figure and return the plot object."""
         from music21 import graph
+        # Patch get_minorticklocs to prevent isfinite crash
+        import numpy as np
+        import matplotlib.axis as _ax
+        if not hasattr(_ax.Axis, "_codex_patched"):
+            _orig = _ax.Axis.get_minorticklocs
+            def _safe_gml(self):
+                try:
+                    return _orig(self)
+                except TypeError:
+                    return np.array([], dtype=float)
+            _ax.Axis.get_minorticklocs = _safe_gml
+            _ax.Axis._codex_patched = True
 
         excerpt = self._get_excerpt(part_idx, start, end)
         w, h = self._figsize_for_range(start, end)
@@ -281,10 +309,9 @@ class VisualizationTab(QWidget):
         elif plot_type == 2:
             plot_obj = graph.plot.ScatterWeightedPitchClassQuarterLength(excerpt, doneAction=None)
             plot_obj.run()
-            # Square figure — no elliptical stretching
-            plot_obj.figure.set_size_inches(8, 7)
+            # Square figure — music21's xDistort/yDistort compensation assumes equal aspect
+            plot_obj.figure.set_size_inches(8, 8)
             ax = plot_obj.figure.gca()
-            ax.set_aspect('auto')
             try:
                 plt.tight_layout()
             except TypeError:

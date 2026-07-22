@@ -1,0 +1,662 @@
+/Users/yvonne/TwelveToneAnalyzer/.venv_mac/lib/python3.9/site-packages/music21/musicxml/xmlToM21.py:5128: MusicXMLWarning: Could not import wedge: Error in getting DynamicWedges
+  warnings.warn(f'Could not import {tag}: {excep}', MusicXMLWarning)
+[INFO] Extracted 4971 note events from 4 parts
+[INFO]   Violins I: 1231 notes
+[INFO]   Violins II: 1279 notes
+[INFO]   Violas: 1272 notes
+[INFO]   Violoncellos: 1189 notes
+[INFO] Found 1 complete 12-tone row(s) via sliding window
+[INFO] Generated 136 analysis segments (window=4, stride=2)
+No score provided — downloading Luo String Quartet No. 2 as example...
+  Downloading MusicXML...
+  Downloaded MusicXML (2,949,847 bytes)
+
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   TwelveToneAnalyzer — Find Segments & Subsets               ║
+║   Full-score, all-voice set theory analysis                  ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+  Score: Luo_Quartet_012b8f22.musicxml
+
+────────────────────────────────────────────────────────────
+  Step 1: Extract ALL notes from ALL parts
+────────────────────────────────────────────────────────────
+
+  Score Overview
+  --------------------------------------------------
+  Parts:       4
+    Violins I: 1231 notes
+    Violins II: 1279 notes
+    Violas: 1272 notes
+    Violoncellos: 1189 notes
+  Total notes: 4971
+  Measure range: 1–272
+
+────────────────────────────────────────────────────────────
+  Step 2: Sliding-window 12-tone row detection
+────────────────────────────────────────────────────────────
+
+  Found 1 complete 12-tone row(s):
+
+    #  Bars       Parts                          Pitch Classes (PC)
+  -----------------------------------------------------------------------------
+    1  1–4        Violins I                      6,9,11,4,0,2,5,7,3,8,10,1
+                                                F#,A,B,E,C,D,F,G,D#,G#,A#,C#
+
+────────────────────────────────────────────────────────────
+  Step 3: Measure-window segmentation (window=4 bars, stride=2)
+────────────────────────────────────────────────────────────
+
+  Segment        Size  PCs                      Prime        Forte      IV                 Parts
+  --------------------------------------------------------------------------------------------------------------------
+  m.1–4            12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I
+    Violas: [3,5,7,8,10]
+    Violins I: [0,1,2,3,4,5,6,7,8,9,10,11]
+  m.3–6            12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II
+    Violas: [0,2,3,4,5,7,8,10,11]
+    Violins I: [1,2,3,6,8,9,10]
+    Violins II: [1,3,8]
+  m.5–8            12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,7,8,11]
+    Violins I: [2,5,6,9,10]
+    Violins II: [1,2,3,4,5,7,8,9,10,11]
+    Violoncellos: [2,4]
+  m.7–10           12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,7,8,11]
+    Violins I: [5,6,9,11]
+    Violins II: [1,2,4,5,7,8,9,10,11]
+    Violoncellos: [0,2,3,4,6,10]
+  m.9–12           12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [2,3,4,6,11]
+    Violins I: [1,5,6,9,10,11]
+    Violins II: [1,3,4,8,10,11]
+    Violoncellos: [0,2,3,6,7,9,10]
+  m.11–14          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [2,3,4,6,11]
+    Violins I: [1,5,6,9,10,11]
+    Violins II: [1,3,4,8,11]
+    Violoncellos: [0,2,3,7,9,10]
+  m.13–16          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [3,4,6]
+    Violins I: [1,5,8,10,11]
+    Violins II: [2,3,6,8,11]
+    Violoncellos: [0,2,7,9]
+  m.15–18          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [3,5,6,9,10]
+    Violins I: [1,5,8,10,11]
+    Violins II: [2,3,4,6,8,11]
+    Violoncellos: [0,2,3,7,9]
+  m.17–20          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [5,9,10]
+    Violins I: [1,8,11]
+    Violins II: [2,4,6]
+    Violoncellos: [0,3,7]
+  m.19–22          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,5,9,10]
+    Violins I: [1,4,8,11]
+    Violins II: [2,4,6,11]
+    Violoncellos: [0,3,7,9]
+  m.21–24          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,5,9,10]
+    Violins I: [0,1,4,8,9,11]
+    Violins II: [1,2,4,6,11]
+    Violoncellos: [0,3,7,9]
+  m.23–26          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,7,9,10,11]
+    Violins I: [0,1,2,4,7,8,9,11]
+    Violins II: [1,2,3,4,5,6,7,8,10,11]
+    Violoncellos: [0,1,3,5,6,7,8,9,11]
+  m.25–28          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,6,7,8,9,10,11]
+    Violins I: [0,1,2,4,5,6,7,9,11]
+    Violins II: [1,2,3,4,5,6,7,8,9,10,11]
+    Violoncellos: [0,1,5,6,7,8,9,11]
+  m.27–30          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,2,3,4,5,6,7,8,9,10]
+    Violins I: [0,1,2,3,4,5,6,7,8,9,10,11]
+    Violins II: [2,3,4,5,6,7,8,9,10,11]
+    Violoncellos: [0,1,2,3,5,6,7,8,9,10,11]
+  m.29–32          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,2,3,4,5,6,7,8,9,10,11]
+    Violins I: [0,1,3,4,5,6,7,8,9,10,11]
+    Violins II: [2,3,4,6,7,8,9,11]
+    Violoncellos: [0,1,2,3,6,7,8,9,10]
+  m.31–34          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,3,4,5,6,8,9,10,11]
+    Violins I: [1,3,4,5,6,8,10,11]
+    Violins II: [2,6,7]
+    Violoncellos: [0,2,5,7,9]
+  m.33–36          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,3,4,5,9,10]
+    Violins I: [1,3,8,11]
+    Violins II: [2,4,6]
+    Violoncellos: [0,3,5,7,9]
+  m.35–38          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [5,9,10]
+    Violins I: [1,3,8,11]
+    Violins II: [2,4,6]
+    Violoncellos: [0,3,7]
+  m.37–40          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,5,9,10]
+    Violins I: [1,4,8,11]
+    Violins II: [2,4,5,6,11]
+    Violoncellos: [0,3,7,9]
+  m.39–42          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,5,9,10]
+    Violins I: [1,2,4,8,11]
+    Violins II: [1,2,4,5,6,11]
+    Violoncellos: [0,3,7,9]
+  m.41–44          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,3,4,5,6,7,8,9,10,11]
+    Violins I: [1,2,3,4,8,11]
+    Violins II: [1,2,3,4,6,10,11]
+    Violoncellos: [0,2,3,5,7,9,10]
+  m.43–46          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,3,4,5,6,7,8,9,10,11]
+    Violins I: [0,1,2,3,4,5,6,8,10,11]
+    Violins II: [1,3,4,5,6,8,10,11]
+    Violoncellos: [0,2,5,7,9,10]
+  m.45–48          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,3,4,5,6,7,8,9,10,11]
+    Violins I: [0,1,2,3,4,5,6,8,10,11]
+    Violins II: [1,3,4,5,6,8,9,10,11]
+    Violoncellos: [0,2,6,7,9,10]
+  m.47–50          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,3,4,5,6,7,8,10,11]
+    Violins I: [0,1,2,3,4,5,6,8,9,10,11]
+    Violins II: [1,2,3,5,8,9,10,11]
+    Violoncellos: [0,2,3,5,6,7,9,10]
+  m.49–52          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,3,4,5,6,7,8,10,11]
+    Violins I: [0,1,2,3,4,6,8,9,10,11]
+    Violins II: [1,2,3,5,6,8,10,11]
+    Violoncellos: [0,1,2,3,4,5,7,9,10,11]
+  m.51–54          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,3,5,6,7,8,9,10,11]
+    Violins I: [0,2,3,4,5,7,8,9]
+    Violins II: [1,2,3,6,9,10,11]
+    Violoncellos: [0,1,2,3,4,7,9,10,11]
+  m.53–56          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,2,3,4,5,6,7,8,9,10,11]
+    Violins I: [0,2,3,4,5,7,8,9,10,11]
+    Violins II: [0,1,2,3,4,6,7,9,10,11]
+    Violoncellos: [0,2,3,4,5,7,10,11]
+  m.55–58          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,2,3,4,6,8,9,10,11]
+    Violins I: [1,2,3,4,5,6,8,9,10,11]
+    Violins II: [0,1,2,3,4,5,6,7,8,9,11]
+    Violoncellos: [0,2,3,5,7,10]
+  m.57–60          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,4,5,6,8,10,11]
+    Violins I: [1,4,6,9]
+    Violins II: [0,1,2,3,5,8,11]
+    Violoncellos: [0,2,3,5,7,10]
+  m.59–62          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,2,4,5,6,7,8,9,10,11]
+    Violins I: [1,4,6,8,11]
+    Violins II: [0,1,2,3,5,6,8,9,10,11]
+    Violoncellos: [0,2,3,4,5,7,8]
+  m.61–64          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,4,5,6,7,8,9,10,11]
+    Violins I: [1,2,3,4,5,6,8,10,11]
+    Violins II: [1,2,3,5,6,9,10,11]
+    Violoncellos: [0,1,2,3,4,5,7,8,11]
+  m.63–66          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,6,7,9,11]
+    Violins I: [2,3,4,5,6,8,10,11]
+    Violins II: [0,1,2,5,7,9]
+    Violoncellos: [1,3,4,6,7,11]
+  m.65–68          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,7,9,11]
+    Violins I: [4,6,10,11]
+    Violins II: [0,1,2,7,9]
+    Violoncellos: [3,5,6,8,10]
+  m.67–70          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,6,7,8,9,10,11]
+    Violins I: [0,2,3,4,9,11]
+    Violins II: [0,1,6,7,9,10]
+    Violoncellos: [3,5,8,10]
+  m.69–72          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,6,7,8,9,10,11]
+    Violins I: [0,2,3,4,5,9,11]
+    Violins II: [0,1,2,3,6,7,8,9,10,11]
+    Violoncellos: [0,2,3,4,5,6,7,8,9,10,11]
+  m.71–74          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,6,7,8,9,10]
+    Violins I: [1,3,5,6,8,9,11]
+    Violins II: [0,2,3,5,6,7,8,10,11]
+    Violoncellos: [0,1,2,3,4,5,6,7,8,9,10,11]
+  m.73–76          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,6,7,8,9,10,11]
+    Violins I: [1,3,6,7,8,9,11]
+    Violins II: [0,2,3,4,5,6,7,10,11]
+    Violoncellos: [0,1,2,4,6,7,9,11]
+  m.75–78          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,6,7,9,11]
+    Violins I: [1,4,7,8,9,10,11]
+    Violins II: [0,1,2,3,4,5,6,7,8,9,10,11]
+    Violoncellos: [0,1,2,3,4,5,6,7,8,9,10,11]
+  m.77–80          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,6,7,8,9,10,11]
+    Violins I: [1,3,4,6,8,10,11]
+    Violins II: [0,1,2,3,4,5,6,7,8,9,10,11]
+    Violoncellos: [1,2,3,4,5,6,8,10]
+  m.79–82          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,6,7,8,9,10,11]
+    Violins I: [0,1,3,4,5,6,7,8,9,10,11]
+    Violins II: [0,1,2,3,4,5,7,8,9,10,11]
+    Violoncellos: [0,1,2,3,4,5,6,7,8,10,11]
+  m.81–84          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,6,7,8,9,10,11]
+    Violins I: [0,1,3,4,5,6,7,8,9,10,11]
+    Violins II: [0,1,2,3,4,5,6,7,8,9,10,11]
+    Violoncellos: [0,1,2,3,6,7,8,9,10,11]
+  m.83–86          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,7,8,10]
+    Violins I: [0,1,3,5,6,8,9,10,11]
+    Violins II: [0,1,2,3,4,5,6,7,8,9,10,11]
+    Violoncellos: [2,4,6,9,10,11]
+  m.85–88          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,2,3,7,8]
+    Violins I: [0,3,5,8,10]
+    Violins II: [0,2,4,6,7,8,9,10,11]
+    Violoncellos: [1,2,4,5,6,7,9,11]
+  m.87–90          10  0,1,2,3,4,5,7,8,9,10     <012345789A> 10-5       [8,8,8,8,9,4]      Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,3]
+    Violins I: [4,5]
+    Violins II: [0,2,3,4,7,8,9,10]
+    Violoncellos: [1,2,4,5,7,9]
+  m.89–92          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [4,5]
+    Violins I: [1,4,5,6,11]
+    Violins II: [0,2,3,6,7,8,9,10]
+    Violoncellos: [0,2,7,9]
+  m.91–94          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,2,3,4,5,7,10]
+    Violins I: [1,3,5,6,11]
+    Violins II: [6,8,9,10]
+    Violoncellos: [0,2,6,7,9]
+  m.93–96          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,7,10]
+    Violins I: [3,4,5,6,10]
+    Violins II: [1,5,8,9,10,11]
+    Violoncellos: [0,2,6,7,9]
+  m.95–98          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,2,3,4]
+    Violins I: [4,6,8,9,10]
+    Violins II: [1,5,6,10,11]
+    Violoncellos: [0,2,3,5,6,7,9,11]
+  m.97–100         12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,2,3,4,5,8]
+    Violins I: [1,3,4,6,8,9,10]
+    Violins II: [3,5,6,7,8,9,10,11]
+    Violoncellos: [0,2,3,5,7,9,10,11]
+  m.99–102         12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [5,7,8,9]
+    Violins I: [1,2,3,4,6,10]
+    Violins II: [0,3,6,7,8,9,10,11]
+    Violoncellos: [0,2,3,4,7,10]
+[INFO] Found 179 unique cross-voice harmonic sets
+  m.101–104        12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,5,6,7,8,9]
+    Violins I: [0,1,2,3,4,6,10]
+    Violins II: [0,5,6,7,8,9,10,11]
+    Violoncellos: [0,1,2,3,4,5,7,10]
+  m.103–106        12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,5,6,8,11]
+    Violins I: [0,1,2,3,4,6,7,8,9,11]
+    Violins II: [0,2,3,4,5,7,9,10,11]
+    Violoncellos: [0,1,3,5,6,7,8,10,11]
+  m.105–108        12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,2,3,4,5,6,8,11]
+    Violins I: [0,1,2,4,5,6,7,8,9,11]
+    Violins II: [0,1,2,3,4,5,7,9,11]
+    Violoncellos: [0,3,5,6,7,8,10,11]
+  m.107–110        12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,4,6,8,11]
+    Violins I: [0,1,2,4,5,6,7,9,10,11]
+    Violins II: [1,2,4,7,8,9]
+    Violoncellos: [0,3,5,6,8,10]
+  m.109–112        12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,2,5,8,11]
+    Violins I: [1,6,7,10]
+    Violins II: [3,4,8,9,11]
+    Violoncellos: [0,2,3,7,9,10]
+  m.111–114        12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [2,5,9,11]
+    Violins I: [1,6,7,8]
+    Violins II: [3,4,5,8,9,10,11]
+    Violoncellos: [0,2,3,6,7,9]
+  m.113–116        12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,2,3,4,5,9]
+    Violins I: [1,4,7,8,11]
+    Violins II: [5,6,8,10]
+    Violoncellos: [0,2,3,6,7,9]
+  m.115–118        12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,3,4,5,8,9,10]
+    Violins I: [0,1,2,3,4,8,11]
+    Violins II: [6,10,11]
+    Violoncellos: [0,2,3,5,7,9]
+  m.117–120        12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [0,1,5,8,9,10]
+    Violins I: [0,1,2,3,6,8]
+    Violins II: [4,6,10,11]
+    Violoncellos: [0,2,3,5,7,9]
+  m.119–122        12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas, Violins I, Violins II, Violoncellos
+    Violas: [1,2,5,6,7,9,10]
+    Violins I: [0,4,5,6,7]
+    Violins II: [2,3,4,8,11]
+    Violoncellos: [0,1,2,3,7,8,9,11]
+  ... and 76 more segments
+
+────────────────────────────────────────────────────────────
+  Step 4: Subset analysis (within each segment)
+────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────
+  Step 5: Cross-voice harmonic analysis
+────────────────────────────────────────────────────────────
+
+     Time   Bar  Parts                               Count  PC Set             Prime        Forte     
+  ----------------------------------------------------------------------------------------------------------------
+     7.75     5  Violas, Violins I                     2  2,5                <03>         2-3       
+    10.00     6  Violas, Violins I                     2  6,11               <05>         2-5       
+    12.00     6  Violas, Violins I                     2  0,6                <06>         2-6       
+    13.00     7  Violas, Violins I, Violins II         4  5,7,8,9            <0124>       4-2B      
+    15.00     8  Violas, Violins II, Violoncellos      4  4,7,9,11           <0247>       4-22B     
+    18.00     9  Violas, Violins II, Violoncellos      3  3,6,10             <037>        3-11A     
+    21.00    10  Violas, Violins I, Violins II, Violoncellos  10  0,1,2,3,4,6,8,9,10,11 <012345678A> 10-2      
+    25.00    12  Violas, Violins I, Violins II         7  1,3,5,6,8,10,11    <013568A>    7-35      
+    27.50    13  Violas, Violins I, Violins II         8  1,3,4,5,6,8,10,11  <0123578A>   8-23      
+    34.00    16  Violins I, Violins II                 4  2,6,8,11           <0258>       4-27A     
+    37.50    17  Violas, Violoncellos                  6  0,3,5,7,9,10       <023579>     6-33B     
+    39.80    19  Violas, Violins I, Violins II, Violoncellos   8  0,3,5,6,7,8,9,10   <02345679>   8-10      
+    45.00    21  Violins I, Violins II                 4  1,4,6,11           <0257>       4-23      
+    47.83    22  Violas, Violins II, Violoncellos      8  0,2,3,5,6,7,9,10   <0124579A>   8-26      
+    51.00    24  Violins I, Violins II                 6  1,2,4,6,8,11       <023579>     6-33A     
+    52.00    24  Violas, Violins I                     1  0                  <0>          1-1       
+    54.50    25  Violas, Violins II, Violoncellos      6  3,4,5,6,8,10       <012357>     6-9A      
+    55.50    25  Violas, Violins II, Violoncellos      3  1,3,11             <024>        3-6       
+    57.00    25  Violas, Violins I, Violins II, Violoncellos   6  1,2,5,6,7,9        <014568>     6-16A     
+    60.00    26  Violas, Violins II, Violoncellos      5  1,3,4,6,11         <02357>      5-23B     
+    60.50    26  Violas, Violins II, Violoncellos      5  1,4,5,6,11         <01257>      5-14B     
+    61.00    26  Violas, Violins II, Violoncellos      5  4,6,8,10,11        <01357>      5-24B     
+    61.50    26  Violas, Violins II, Violoncellos      3  4,6,11             <027>        3-9       
+    62.00    26  Violas, Violoncellos                  5  0,3,5,8,10         <02479>      5-35      
+    62.50    26  Violas, Violins II, Violoncellos      6  0,1,2,7,9,11       <012357>     6-9B      
+    65.50    27  Violins I, Violoncellos               5  0,1,5,8,11         <01258>      5-38B     
+    66.50    27  Violas, Violins I, Violins II         5  2,3,4,6,11         <02347>      5-11B     
+    68.00    27  Violas, Violins I, Violins II         6  0,3,5,8,9,10       <012479>     6-47A     
+    69.00    28  Violas, Violins I, Violins II, Violoncellos   9  1,2,3,4,5,6,8,10,11 <01234578A>  9-7B      
+    69.50    28  Violas, Violins II                    4  3,4,8,10           <0157>       4-16A     
+    70.50    28  Violins I, Violoncellos               5  0,1,6,9,11         <01247>      5-36B     
+    72.50    28  Violas, Violins I, Violins II         5  0,2,6,7,9          <01368>      5-29A     
+    73.00    28  Violas, Violins I, Violins II, Violoncellos   8  0,2,3,4,5,7,8,10   <0123568A>   8-22A     
+    74.00    29  Violas, Violins II, Violoncellos      8  1,2,3,5,6,8,9,11   <0124578A>   8-27A     
+    74.50    29  Violas, Violins I, Violins II         6  2,4,7,9,10,11      <012479>     6-47B     
+    75.00    29  Violas, Violins I, Violins II         5  0,2,4,9,11         <02357>      5-23A     
+    76.50    29  Violas, Violins I, Violins II         5  0,2,3,7,9          <01368>      5-29B     
+    77.00    29  Violas, Violins I, Violins II         5  4,5,6,10,11        <01267>      5-7A      
+    78.00    30  Violas, Violins II, Violoncellos      8  1,2,3,5,6,8,9,10   <01245789>   8-20      
+    79.00    30  Violas, Violins I, Violins II, Violoncellos   4  2,4,7,11           <0358>       4-26      
+    80.50    30  Violas, Violins I, Violins II, Violoncellos   6  0,3,4,5,8,10       <012579>     6-48      
+    81.00    30  Violas, Violins I, Violins II, Violoncellos   6  0,1,3,5,8,10       <024579>     6-32      
+    85.50    32  Violas, Violoncellos                  6  0,2,3,7,9,11       <013468>     6-24B     
+    88.00    33  Violas, Violins I, Violins II         5  2,4,6,8,11         <02469>      5-34      
+    89.00    33  Violas, Violins I, Violins II         4  1,2,4,6            <0135>       4-11A     
+    91.00    34  Violas, Violoncellos                  4  5,7,9,10           <0135>       4-11B     
+    93.00    35  Violins I, Violins II                 2  3,4                <01>         2-1       
+   103.50    39  Violins I, Violins II                 4  1,4,5,11           <0146>       4-15B     
+   110.75    42  Violins I, Violins II                 3  2,4,11             <025>        3-7B      
+   111.75    43  Violas, Violins I, Violins II         5  0,2,4,10,11        <01246>      5-9A      
+   112.50    43  Violas, Violins I, Violins II         4  2,4,8,11           <0258>       4-27B     
+   113.00    43  Violas, Violins I, Violins II         4  1,2,4,11           <0235>       4-10      
+   114.50    43  Violas, Violins I, Violins II         4  2,3,4,11           <0125>       4-4B      
+   118.50    44  Violas, Violins II, Violoncellos      6  0,2,6,7,9,11       <013568>     6-25A     
+   123.50    45  Violas, Violins I                     4  6,7,8,9            <0123>       4-1       
+   126.00    45  Violas, Violins I                     3  7,9,10             <013>        3-2B      
+   132.50    47  Violas, Violins I, Violins II         5  0,2,5,8,9          <01469>      5-32A     
+   137.50    48  Violas, Violins I, Violins II, Violoncellos   7  0,2,5,7,8,9,10     <0234579>    7-23A     
+   139.00    48  Violas, Violoncellos                  4  0,4,6,10           <0268>       4-25      
+   143.50    50  Violas, Violins I, Violins II, Violoncellos   7  0,1,2,4,7,9,11     <0234579>    7-23B     
+   144.33    50  Violas, Violins I, Violins II         7  1,3,4,5,8,10,11    <0124679>    7-29B     
+   147.00    51  Violas, Violins I, Violins II         5  1,2,4,5,11         <01346>      5-10B     
+   148.50    52  Violas, Violins I, Violins II         5  0,5,6,8,10         <01357>      5-24A     
+   149.00    52  Violas, Violoncellos                  2  1,3                <02>         2-2       
+   151.00    53  Violas, Violins I, Violins II         8  2,3,4,6,7,8,9,11   <01245679>   8-14A     
+   155.33    54  Violas, Violins I, Violins II         6  1,3,7,8,9,10       <012368>     6-41A     
+   157.00    55  Violins I, Violins II                 5  3,6,8,9,11         <02358>      5-25B     
+   159.50    56  Violas, Violins I, Violins II, Violoncellos   9  0,1,3,5,6,7,8,9,10 <01234578A>  9-7A      
+   163.50    57  Violas, Violins I, Violins II, Violoncellos  12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1      
+   173.00    62  Violas, Violins II, Violoncellos      8  0,1,4,5,6,7,8,10   <01234689>   8-15A     
+   176.00    63  Violas, Violins I, Violins II, Violoncellos  10  0,1,2,3,5,6,7,9,10,11 <012345689A> 10-4      
+   194.00    68  Violas, Violins II, Violoncellos      3  0,4,5              <015>        3-4B      
+   196.00    69  Violas, Violins II                    2  0,4                <04>         2-4       
+   198.00    69  Violas, Violins I, Violins II         3  3,7,11             <048>        3-12      
+   202.00    70  Violas, Violins I, Violins II         3  0,6,9              <036>        3-10      
+   204.00    71  Violas, Violins I, Violins II, Violoncellos   4  1,5,6,8            <0237>       4-14B     
+   218.00    74  Violas, Violins I, Violins II         4  1,2,5,9            <0148>       4-19A     
+   222.00    76  Violas, Violins II                    3  2,5,10             <037>        3-11B     
+   224.00    77  Violas, Violins I, Violins II, Violoncellos   6  1,2,4,6,7,11       <013568>     6-25B     
+   227.00    78  Violas, Violins I, Violins II         5  0,1,3,4,6          <01346>      5-10A     
+   228.50    78  Violas, Violins I, Violins II         3  7,8,10             <013>        3-2A      
+   229.00    78  Violas, Violins I, Violins II         5  2,6,7,8,11         <01258>      5-38A     
+   229.50    78  Violas, Violins II                    4  0,1,4,9            <0347>       4-17      
+   231.00    79  Violas, Violins I, Violins II         5  2,5,6,7,10         <03458>      5-37      
+   231.50    79  Violas, Violins II, Violoncellos      4  0,1,5,9            <0148>       4-19B     
+   233.00    79  Violas, Violins I, Violins II         5  1,4,5,9,10         <01478>      5-22      
+   233.50    79  Violas, Violins II                    4  0,2,3,7            <0237>       4-14A     
+   236.00    80  Violas, Violins I, Violoncellos       4  0,5,8,11           <0147>       4-18B     
+   237.00    80  Violas, Violins I, Violins II         6  0,1,3,4,9,10       <013467>     6-13      
+   237.50    80  Violas, Violins I, Violins II         6  1,2,5,6,7,11       <012568>     6-43B     
+   238.50    81  Violas, Violins II                    3  5,6,9              <014>        3-3A      
+   239.00    81  Violas, Violins II, Violoncellos      5  0,3,4,5,11         <01256>      5-6B      
+   241.00    81  Violas, Violins II, Violoncellos      5  2,3,4,7,9          <01257>      5-14A     
+   242.00    81  Violas, Violins I, Violins II         5  0,2,5,10,11        <01247>      5-36A     
+   243.50    82  Violas, Violins II, Violoncellos      4  0,2,3,8            <0137>       4-29B     
+   245.00    82  Violas, Violins I, Violins II, Violoncellos   4  0,2,5,10           <0247>       4-22A     
+   247.00    83  Violas, Violins I, Violins II, Violoncellos   7  0,1,5,6,7,8,10     <0123578>    7-14A     
+   248.00    83  Violas, Violins I, Violins II, Violoncellos   5  1,2,3,5,9          <01248>      5-13A     
+   248.50    83  Violas, Violins I, Violins II         5  3,4,8,10,11        <01378>      5-20B     
+   249.00    83  Violas, Violins I, Violins II         6  0,2,5,8,9,11       <013469>     6-27A     
+   250.00    84  Violas, Violins I, Violins II, Violoncellos   7  1,2,4,5,7,10,11    <0134679>    7-31A     
+   250.50    84  Violas, Violins I, Violins II, Violoncellos   4  3,4,8,9            <0156>       4-8       
+   251.00    84  Violas, Violins I, Violins II, Violoncellos   4  1,8,9,10           <0125>       4-4A      
+   253.00    85  Violins I, Violins II                 3  0,2,8              <026>        3-8B      
+   275.00    91  Violas, Violins I, Violins II, Violoncellos   5  0,5,6,8,11         <01367>      5-19A     
+   296.83   101  Violas, Violins I, Violins II, Violoncellos   7  0,1,2,3,7,8,10     <0123578>    7-14B     
+   302.50   102  Violas, Violins I, Violins II         3  2,9,11             <025>        3-7A      
+   309.00   106  Violas, Violins I, Violins II, Violoncellos   8  0,3,4,5,6,7,8,11   <01234589>   8-7       
+   309.50   106  Violas, Violins I, Violins II, Violoncellos   6  0,4,6,7,8,10       <023468>     6-21A     
+   310.00   106  Violas, Violins I, Violins II, Violoncellos   6  0,2,4,6,8,10       <02468A>     6-35      
+   310.50   106  Violas, Violins I, Violins II, Violoncellos   8  0,2,3,5,6,8,9,11   <0134679A>   8-28      
+   311.00   106  Violas, Violins I, Violins II, Violoncellos   4  3,4,5,11           <0126>       4-5B      
+   312.00   107  Violas, Violins I, Violins II, Violoncellos   4  0,1,3,11           <0124>       4-2A      
+   314.00   108  Violas, Violins I, Violins II, Violoncellos   7  0,4,5,6,7,8,11     <0123478>    7-6A      
+   330.00   115  Violas, Violins I, Violins II         3  3,10,11            <015>        3-4A      
+   340.00   119  Violas, Violins I, Violins II, Violoncellos   7  0,1,2,4,6,7,9      <0124679>    7-29A     
+   351.00   125  Violas, Violins I, Violins II, Violoncellos   6  0,1,3,8,9,11       <013457>     6-10A     
+   352.50   125  Violas, Violins I, Violins II, Violoncellos   6  1,2,3,7,8,11       <012478>     6-17B     
+   354.50   126  Violas, Violins I, Violins II, Violoncellos   5  2,4,5,6,10         <01248>      5-13B     
+   372.00   134  Violas, Violins II, Violoncellos      3  4,6,10             <026>        3-8A      
+   382.00   138  Violas, Violins I, Violins II, Violoncellos   8  0,2,3,6,7,9,10,11  <01345689>   8-17      
+[INFO] Generated 135 analysis segments (window=4, stride=2)
+   392.00   142  Violas, Violins I, Violins II, Violoncellos   8  0,2,3,6,7,8,9,11   <01235689>   8-18A     
+   395.00   144  Violas, Violins I, Violins II, Violoncellos   8  0,2,5,6,7,8,9,10   <01234579>   8-11A     
+   396.50   144  Violas, Violins I, Violins II, Violoncellos   8  0,2,4,5,7,8,10,11  <0124578A>   8-27B     
+   397.00   144  Violas, Violins I, Violins II, Violoncellos   5  1,3,4,6,9          <02358>      5-25A     
+   414.00   152  Violas, Violins I, Violins II, Violoncellos   4  0,3,8,9            <0147>       4-18A     
+   417.00   153  Violas, Violins I, Violoncellos       5  0,3,7,9,11         <02458>      5-26A     
+   427.00   158  Violins I, Violins II, Violoncellos   5  0,3,5,7,11         <01468>      5-30A     
+   431.50   159  Violas, Violins I, Violins II, Violoncellos   4  3,4,9,11           <0157>       4-16B     
+   432.50   160  Violas, Violins I, Violins II         3  0,1,7              <016>        3-5B      
+   436.00   162  Violas, Violins I, Violoncellos       5  0,4,7,8,10         <02458>      5-26B     
+   444.50   165  Violas, Violins II                    4  5,6,8,11           <0136>       4-13A     
+   456.00   170  Violas, Violins II, Violoncellos      5  2,6,7,9,11         <01358>      5-27A     
+   462.00   171  Violas, Violins I, Violins II         3  1,2,7              <016>        3-5A      
+   465.33   172  Violas, Violins I, Violins II, Violoncellos   4  0,1,4,6            <0146>       4-15A     
+   466.00   172  Violas, Violins I, Violins II, Violoncellos   6  2,3,7,8,9,11       <012478>     6-17A     
+   472.00   174  Violas, Violins I, Violins II, Violoncellos   7  1,2,3,4,5,8,10     <0123479>    7-12      
+   475.00   174  Violas, Violins I, Violins II, Violoncellos   7  0,2,6,7,9,10,11    <0134568>    7-11A     
+   478.62   175  Violas, Violins II                    6  2,4,6,7,8,11       <012469>     6-46B     
+   479.67   176  Violas, Violins I, Violins II, Violoncellos   4  2,3,5,9            <0137>       4-29A     
+   482.00   177  Violas, Violins I, Violins II, Violoncellos   4  4,5,6,11           <0127>       4-6       
+   482.70   177  Violas, Violins II, Violoncellos      6  0,2,5,9,10,11      <012358>     6-40A     
+   485.00   177  Violas, Violins I, Violins II, Violoncellos   6  1,2,4,8,10,11      <023568>     6-23      
+   509.00   184  Violins I, Violins II, Violoncellos   6  4,5,6,7,8,9        <012345>     6-1       
+   510.50   185  Violins I, Violins II, Violoncellos   5  0,1,3,4,9          <01347>      5-16B     
+   511.00   185  Violins I, Violins II, Violoncellos   5  1,3,5,7,11         <02468>      5-33      
+   511.50   185  Violins II, Violoncellos              4  2,3,10,11          <0145>       4-7       
+   515.00   187  Violas, Violins I, Violins II, Violoncellos   6  1,3,5,7,10,11      <013579>     6-34A     
+   516.50   188  Violas, Violins II                    4  1,3,4,10           <0136>       4-13B     
+   517.50   188  Violas, Violins I, Violins II         5  1,2,4,5,8          <01347>      5-16A     
+   518.00   189  Violas, Violins I, Violins II, Violoncellos   7  0,1,6,7,8,9,10     <0123467>    7-4A      
+   519.00   189  Violas, Violins I, Violins II, Violoncellos   5  0,1,2,3,4          <01234>      5-1       
+   520.00   190  Violas, Violins I, Violins II, Violoncellos   5  1,2,6,9,10         <01458>      5-21B     
+   522.00   191  Violas, Violins I, Violins II, Violoncellos   6  1,2,6,9,10,11      <013458>     6-14B     
+   541.50   200  Violins I, Violins II, Violoncellos   5  0,2,3,6,7          <01457>      5-18B     
+   544.50   202  Violas, Violins I, Violins II         6  0,3,6,8,9,10       <023469>     6-45      
+   551.50   205  Violas, Violins I, Violins II, Violoncellos  10  1,2,4,5,6,7,8,9,10,11 <012345679A> 10-3      
+   553.00   206  Violas, Violins I, Violins II, Violoncellos   9  0,1,2,3,4,5,6,8,11 <012345679>  9-2A      
+   557.50   208  Violas, Violins I, Violins II, Violoncellos   6  1,2,4,7,8,11       <014679>     6-50      
+   561.00   210  Violas, Violins I, Violins II, Violoncellos   9  0,1,2,4,6,8,9,10,11 <01234568A>  9-6       
+   576.00   217  Violas, Violins I, Violins II, Violoncellos   4  1,3,5,11           <0246>       4-21      
+   577.50   217  Violas, Violins II                    4  0,1,3,4            <0134>       4-3       
+   581.00   219  Violas, Violins I, Violins II, Violoncellos   6  0,6,7,9,10,11      <012356>     6-3B      
+   596.00   224  Violas, Violins I, Violins II         8  0,3,4,5,6,8,10,11  <01235789>   8-16A     
+   599.00   225  Violas, Violins I, Violins II         8  0,3,4,5,6,7,10,11  <01234789>   8-8       
+   655.00   250  Violas, Violins I                     3  0,8,11             <014>        3-3B      
+   659.00   252  Violas, Violins I, Violins II, Violoncellos  11  0,1,2,4,5,6,7,8,9,10,11 <0123456789A> 11-1      
+   670.50   256  Violas, Violoncellos                  4  2,6,7,11           <0158>       4-20      
+   671.00   256  Violas, Violins II, Violoncellos      6  2,3,5,6,7,11       <012458>     6-15B     
+   671.50   256  Violas, Violins II, Violoncellos      6  0,1,4,8,9,10       <012458>     6-15A     
+   672.00   257  Violas, Violins I, Violins II, Violoncellos   7  0,4,6,8,9,10,11    <0123468>    7-9B      
+   673.00   257  Violas, Violins I, Violins II, Violoncellos   7  0,1,3,4,5,6,9      <0123569>    7-16B     
+   673.33   257  Violas, Violins I, Violins II, Violoncellos   4  2,8,10,11          <0236>       4-12A     
+   675.00   257  Violas, Violins I, Violins II, Violoncellos   7  0,2,6,8,9,10,11    <0234568>    7-8       
+   676.00   258  Violas, Violins I, Violins II, Violoncellos   7  1,2,3,4,5,7,9      <0123468>    7-9A      
+   677.00   258  Violas, Violins I, Violins II, Violoncellos   7  0,6,7,8,9,10,11    <0123456>    7-1       
+   679.00   258  Violas, Violins I, Violins II, Violoncellos   6  0,6,8,9,10,11      <012346>     6-2B      
+   680.00   259  Violas, Violins I, Violins II, Violoncellos   6  1,2,3,4,5,7        <012346>     6-2A      
+   681.00   259  Violas, Violins I, Violins II, Violoncellos   7  0,5,6,8,9,10,11    <0123467>    7-4B      
+
+────────────────────────────────────────────────────────────
+  Step 6: Per-part measure window analysis
+────────────────────────────────────────────────────────────
+  ── Violins I (1231 notes) ──
+
+  Segment        Size  PCs                      Prime        Forte      IV                 Parts
+  --------------------------------------------------------------------------------------------------------------------
+  m.1–4            12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violins I
+  m.3–6             7  1,2,3,6,8,9,10           <0124789>    7-20B      [4,3,3,4,5,2]      Violins I
+  m.5–8             5  2,5,6,9,10               <01458>      5-21B      [2,0,2,4,2,0]      Violins I
+  m.7–10            4  5,6,9,11                 <0146>       4-15A      [1,1,1,1,1,1]      Violins I
+  m.9–12            6  1,5,6,9,10,11            <014568>     6-16A      [3,2,2,4,3,1]      Violins I
+  m.11–14           6  1,5,6,9,10,11            <014568>     6-16A      [3,2,2,4,3,1]      Violins I
+  m.13–16           5  1,5,8,10,11              <02358>      5-25B      [1,2,3,1,2,1]      Violins I
+  m.15–18           5  1,5,8,10,11              <02358>      5-25B      [1,2,3,1,2,1]      Violins I
+  m.19–22           4  1,4,8,11                 <0358>       4-26       [0,1,2,1,2,0]      Violins I
+  m.21–24           6  0,1,4,8,9,11             <013458>     6-14A      [3,2,3,4,3,0]      Violins I
+  m.23–26           8  0,1,2,4,7,8,9,11         <01245679>   8-14A      [5,5,5,5,6,2]      Violins I
+  m.25–28           9  0,1,2,4,5,6,7,9,11       <01235678A>  9-9        [6,7,6,6,8,3]      Violins I
+  m.27–30          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violins I
+[INFO] Generated 134 analysis segments (window=4, stride=2)
+[INFO] Generated 134 analysis segments (window=4, stride=2)
+[INFO] Generated 132 analysis segments (window=4, stride=2)
+  m.29–32          11  0,1,3,4,5,6,7,8,9,10,11  <0123456789A> 11-1       [10,10,10,10,10,5] Violins I
+  m.31–34           8  1,3,4,5,6,8,10,11        <0123578A>   8-23       [4,6,5,4,7,2]      Violins I
+  m.33–36           4  1,3,8,11                 <0247>       4-22B      [0,2,1,1,2,0]      Violins I
+  m.35–38           4  1,3,8,11                 <0247>       4-22B      [0,2,1,1,2,0]      Violins I
+  m.37–40           4  1,4,8,11                 <0358>       4-26       [0,1,2,1,2,0]      Violins I
+  m.39–42           5  1,2,4,8,11               <02358>      5-25B      [1,2,3,1,2,1]      Violins I
+  m.41–44           6  1,2,3,4,8,11             <012358>     6-40B      [3,3,3,2,3,1]      Violins I
+
+
+  ── Violins II (1279 notes) ──
+
+  Segment        Size  PCs                      Prime        Forte      IV                 Parts
+  --------------------------------------------------------------------------------------------------------------------
+  m.6–9            10  1,2,3,4,5,7,8,9,10,11    <012346789A> 10-6       [8,8,8,8,8,5]      Violins II
+  m.8–11            8  1,4,5,7,8,9,10,11        <01345679>   8-12A      [5,5,6,5,4,3]      Violins II
+  m.10–13           5  1,3,4,8,11               <01358>      5-27B      [1,2,2,2,3,0]      Violins II
+  m.14–17           6  2,3,4,6,8,11             <012469>     6-46A      [2,3,3,3,3,1]      Violins II
+  m.18–21           4  2,4,6,11                 <0247>       4-22B      [0,2,1,1,2,0]      Violins II
+  m.20–23           4  2,4,6,11                 <0247>       4-22B      [0,2,1,1,2,0]      Violins II
+  m.22–25           9  1,2,3,4,5,6,8,10,11      <01234578A>  9-7B       [6,7,7,6,7,3]      Violins II
+  m.24–27          10  1,2,3,4,5,6,7,8,10,11    <012345679A> 10-3       [8,8,9,8,8,4]      Violins II
+  m.26–29          11  1,2,3,4,5,6,7,8,9,10,11  <0123456789A> 11-1       [10,10,10,10,10,5] Violins II
+  m.28–31           9  2,3,4,6,7,8,9,10,11      <012345789>  9-4B       [7,6,6,7,7,3]      Violins II
+  m.30–33           6  2,3,6,7,8,11             <012569>     6-44B      [3,1,3,4,3,1]      Violins II
+  m.36–39           5  2,4,5,6,11               <01247>      5-36B      [2,2,2,1,2,1]      Violins II
+  m.38–41           5  2,4,5,6,11               <01247>      5-36B      [2,2,2,1,2,1]      Violins II
+  m.40–43           5  1,2,4,6,11               <02357>      5-23A      [1,3,2,1,3,0]      Violins II
+  m.42–45           7  1,2,3,4,6,10,11          <0134568>    7-11A      [4,4,4,4,4,1]      Violins II
+  m.44–47           9  1,3,4,5,6,8,9,10,11      <01235678A>  9-9        [6,7,6,6,8,3]      Violins II
+  m.46–49          10  1,2,3,4,5,6,8,9,10,11    <012345789A> 10-5       [8,8,8,8,9,4]      Violins II
+  m.48–51           7  1,2,3,5,8,10,11          <0234679>    7-25B      [3,4,5,3,4,2]      Violins II
+  m.50–53           9  1,2,3,5,6,8,9,10,11      <01235679A>  9-11A      [6,6,7,7,7,3]      Violins II
+  m.52–55           7  1,2,3,6,9,10,11          <0124569>    7-17       [4,3,4,5,4,1]      Violins II
+
+
+  ── Violas (1272 notes) ──
+
+  Segment        Size  PCs                      Prime        Forte      IV                 Parts
+  --------------------------------------------------------------------------------------------------------------------
+  m.4–7             9  0,2,3,4,5,7,8,10,11      <01235679A>  9-11B      [6,6,7,7,7,3]      Violas
+  m.6–9             6  0,1,3,7,8,11             <014568>     6-16A      [3,2,2,4,3,1]      Violas
+  m.8–11            8  0,1,2,3,4,7,8,11         <01234589>   8-7        [6,4,5,6,5,2]      Violas
+  m.10–13           5  2,3,4,6,11               <02347>      5-11B      [2,2,2,2,2,0]      Violas
+  m.14–17           5  3,5,6,9,10               <01457>      5-18B      [2,1,2,2,2,1]      Violas
+  m.20–23           4  0,5,9,10                 <0237>       4-14B      [1,1,1,1,2,0]      Violas
+  m.22–25           9  0,1,2,3,4,5,7,9,10       <01234578A>  9-7B       [6,7,7,6,7,3]      Violas
+  m.24–27          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas
+  m.26–29          12  0,1,2,3,4,5,6,7,8,9,10,11 <0123456789AB> 12-1       [12,12,12,12,12,6] Violas
+  m.28–31           8  0,2,3,4,5,7,9,10         <0123578A>   8-23       [4,6,5,4,7,2]      Violas
+  m.30–33          10  0,2,3,4,5,6,8,9,10,11    <012346789A> 10-6       [8,8,8,8,8,5]      Violas
+  m.32–35           9  0,3,4,5,6,8,9,10,11      <012346789>  9-5B       [7,6,6,6,7,4]      Violas
+  m.34–37           5  0,3,5,9,10               <01368>      5-29A      [1,2,2,1,3,1]      Violas
+  m.38–41           4  0,5,9,10                 <0237>       4-14B      [1,1,1,1,2,0]      Violas
+  m.40–43           9  0,1,3,5,6,7,8,9,10       <01234578A>  9-7A       [6,7,7,6,7,3]      Violas
+  m.42–45          11  0,1,3,4,5,6,7,8,9,10,11  <0123456789A> 11-1       [10,10,10,10,10,5] Violas
+  m.44–47          10  1,3,4,5,6,7,8,9,10,11    <012345678A> 10-2       [8,9,8,8,8,4]      Violas
+  m.46–49           9  1,3,4,5,6,7,8,10,11      <01234578A>  9-7A       [6,7,7,6,7,3]      Violas
+  m.48–51          10  0,1,3,4,5,6,7,8,10,11    <012345789A> 10-5       [8,8,8,8,9,4]      Violas
+  m.50–53          11  0,1,3,4,5,6,7,8,9,10,11  <0123456789A> 11-1       [10,10,10,10,10,5] Violas
+
+
+  ── Violoncellos (1189 notes) ──
+
+  Segment        Size  PCs                      Prime        Forte      IV                 Parts
+  --------------------------------------------------------------------------------------------------------------------
+  m.7–10            6  0,2,3,4,6,10             <023468>     6-21B      [2,4,2,4,1,2]      Violoncellos
+  m.9–12            7  0,2,3,6,7,9,10           <0134689>    7-32A      [3,3,5,4,4,2]      Violoncellos
+  m.11–14           6  0,2,3,7,9,10             <013568>     6-25B      [2,3,3,2,4,1]      Violoncellos
+  m.13–16           4  0,2,7,9                  <0257>       4-23       [0,2,1,0,3,0]      Violoncellos
+  m.15–18           5  0,2,3,7,9                <01368>      5-29B      [1,2,2,1,3,1]      Violoncellos
+  m.19–22           4  0,3,7,9                  <0258>       4-27A      [0,1,2,1,1,1]      Violoncellos
+  m.21–24           4  0,3,7,9                  <0258>       4-27A      [0,1,2,1,1,1]      Violoncellos
+  m.23–26           9  0,1,3,5,6,7,8,9,11       <01234678A>  9-8A       [6,7,6,7,6,4]      Violoncellos
+  m.25–28           8  0,1,5,6,7,8,9,11         <01234678>   8-5A       [6,5,4,5,5,3]      Violoncellos
+  m.27–30          11  0,1,2,3,5,6,7,8,9,10,11  <0123456789A> 11-1       [10,10,10,10,10,5] Violoncellos
+  m.29–32           9  0,1,2,3,6,7,8,9,10       <012346789>  9-5A       [7,6,6,6,7,4]      Violoncellos
+  m.31–34           5  0,2,5,7,9                <02479>      5-35       [0,3,2,1,4,0]      Violoncellos
+  m.33–36           5  0,3,5,7,9                <02469>      5-34       [0,3,2,2,2,1]      Violoncellos
+  m.37–40           4  0,3,7,9                  <0258>       4-27A      [0,1,2,1,1,1]      Violoncellos
+  m.39–42           4  0,3,7,9                  <0258>       4-27A      [0,1,2,1,1,1]      Violoncellos
+  m.41–44           7  0,2,3,5,7,9,10           <013568A>    7-35       [2,5,4,3,6,1]      Violoncellos
+  m.43–46           6  0,2,5,7,9,10             <024579>     6-32       [1,4,3,2,5,0]      Violoncellos
+  m.45–48           6  0,2,6,7,9,10             <013468>     6-24A      [2,3,3,3,3,1]      Violoncellos
+  m.47–50           8  0,2,3,5,6,7,9,10         <0124579A>   8-26       [4,5,6,5,6,2]      Violoncellos
+  m.49–52          10  0,1,2,3,4,5,7,9,10,11    <012345678A> 10-2       [8,9,8,8,8,4]      Violoncellos
+
+
+======================================================================
+  Summary
+======================================================================
+  Total notes extracted:  4971
+  Total parts:            4
+  12-tone rows found:     1
+  Measure segments:       136
+  Cross-voice harmonies:  179
+

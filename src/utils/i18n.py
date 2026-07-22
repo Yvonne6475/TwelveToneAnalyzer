@@ -257,6 +257,7 @@ TRANSLATIONS = {
     "viz.score_info": {"zh": "声部: {parts} | 小节: 1–{measures}", "en": "Parts: {parts} | Measures: 1–{measures}"},
     "viz.range_error": {"zh": "范围错误", "en": "Range Error"},
     "viz.range_error_msg": {"zh": "起始小节不能大于结束小节。", "en": "Start measure cannot be greater than end measure."},
+    "viz.format_hint": {"zh": "提示：若部分图表显示异常，请尝试加载 MIDI 或其他格式的乐谱文件", "en": "Tip: If some plots appear incorrect, try loading the score in MIDI or another file format"},
     "viz.plot_error": {"zh": "绘图错误", "en": "Plot Error"},
     "viz.plot_types": {
         "zh": ["Note Quarter Length by Pitch", "音级分布直方图 (PitchClass Histogram)", "音级-时值散点图 (Scatter Weighted PClass QLen)", "小节-音级散点图 (Scatter Measure PitchClass)", "水平加权柱状图 (Horizontal Bar Weighted)", "3D 柱状图 (3D Bars)", "调性色块图 (Color Grid)"],
