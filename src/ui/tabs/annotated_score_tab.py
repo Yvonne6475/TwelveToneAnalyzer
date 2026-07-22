@@ -165,6 +165,8 @@ class AnnotatedScoreTab(QWidget):
         if not self._validate():
             return
         try:
+            from src.utils.config import configure_music21_environment
+            configure_music21_environment()
             excerpt = self._prepare_excerpt()
             show_score(excerpt)
         except Exception as e:
