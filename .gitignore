@@ -29,3 +29,16 @@ temp.xml
 .DS_Store
 Thumbs.db
 .venv_mac/
+# Cache / build artifacts
+.matplotlib/
+.mpl_cache/
+__pycache__/
+*.pyc
+dist/
+build/
+*.spec
+
+# Temp / generated
+output.txt
+"find segments and subset .py"
+.DS_Store
