@@ -1,6 +1,7 @@
 """Visualization tab: generate music21 plots with interactive controls."""
 
 import sys
+import os
 import tempfile
 
 from PyQt5.QtWidgets import (
@@ -182,7 +183,10 @@ class VisualizationTab(QWidget):
             return None
         fd, path = tempfile.mkstemp(suffix='.png', prefix='tta_chart_')
         os.close(fd)
-        fig.savefig(path, dpi=150, bbox_inches='tight')
+        try:
+            fig.savefig(path, dpi=150, bbox_inches='tight')
+        except TypeError:
+            fig.savefig(path, dpi=150)
         return path
 
     def _on_generate(self):
@@ -203,47 +207,26 @@ class VisualizationTab(QWidget):
             from PyQt5.QtWidgets import QApplication; QApplication.processEvents()
             QApplication.setOverrideCursor(Qt.WaitCursor)
 
-            # Determine which parts to plot
-            parts_to_plot = []
-            if part_idx == -1 and hasattr(self._score, 'parts'):
-                for pi in range(len(self._score.parts)):
-                    pn = self._score.parts[pi].partName or f"Part {pi+1}"
-                    parts_to_plot.append((pi, pn))
-            else:
-                pn = self._part_combo.currentText()
-                parts_to_plot.append((part_idx, pn))
-
-            png_paths = []
-            for pi, pn in parts_to_plot:
-                plot_obj = self._generate_plot(plot_idx, pi, start, end)
-                fig = plot_obj.figure if plot_obj and hasattr(plot_obj, 'figure') else plt.gcf()
-                if fig is None:
-                    continue
-                # Save each part's figure
-                fd, tmp_path = tempfile.mkstemp(suffix='.png', prefix=f'tta_{pn.replace(" ","_")}_')
-                os.close(fd)
-                fig.savefig(tmp_path, dpi=150, bbox_inches='tight')
-                png_paths.append(tmp_path)
-                plt.close(fig)
-
-            if not png_paths:
-                return
-
-            self._current_fig = None
+            plot_obj = self._generate_plot(plot_idx, part_idx, start, end)
+            self._current_fig = plot_obj.figure if plot_obj and hasattr(plot_obj, 'figure') else plt.gcf()
             self._current_plot_idx = plot_idx
             self._btn_save.setEnabled(True)
 
-            # Open all generated PNGs
             if sys.platform == 'win32':
-                for p in png_paths:
-                    self._open_chart_in_viewer(p)
+                png_path = self._save_figure_to_temp(self._current_fig)
+                if png_path:
+                    self._open_chart_in_viewer(png_path)
             else:
-                import subprocess
-                for p in png_paths:
-                    subprocess.Popen(['open', p])
+                png_path = self._save_figure_to_temp(self._current_fig)
+                if png_path:
+                    import subprocess
+                    subprocess.Popen(['open', png_path])
         except Exception as e:
-            QMessageBox.warning(self, tr("viz.plot_error"), str(e))
-            import traceback; traceback.print_exc()
+            import traceback
+            tb = traceback.format_exc()
+            QMessageBox.critical(self, tr("viz.plot_error"),
+                                 str(e) + "  " + tb)
+            traceback.print_exc()
         self._btn_generate.setEnabled(True); QApplication.restoreOverrideCursor()
 
     def _get_excerpt(self, part_idx: int, start: int, end: int):
@@ -271,15 +254,29 @@ class VisualizationTab(QWidget):
         excerpt = self._get_excerpt(part_idx, start, end)
         w, h = self._figsize_for_range(start, end)
 
+        # Normalise all note durations to float — music21 sometimes stores
+        # Fraction objects that crash numpy ufunc 'isfinite' downstream.
+        for n in excerpt.recurse().notes:
+            try:
+                n.duration.quarterLength = float(n.duration.quarterLength)
+            except Exception:
+                pass
+
         if plot_type == 0:
             plot_obj = excerpt.plot('horizontalbar', doneAction=None)
             plot_obj.figure.set_size_inches(w, h)
-            plt.tight_layout()
+            try:
+                plt.tight_layout()
+            except TypeError:
+                pass
 
         elif plot_type == 1:
             plot_obj = excerpt.plot('histogram', 'pitchClass', doneAction=None)
             plot_obj.figure.set_size_inches(w, h)
-            plt.tight_layout()
+            try:
+                plt.tight_layout()
+            except TypeError:
+                pass
 
         elif plot_type == 2:
             plot_obj = graph.plot.ScatterWeightedPitchClassQuarterLength(excerpt, doneAction=None)
@@ -288,12 +285,18 @@ class VisualizationTab(QWidget):
             plot_obj.figure.set_size_inches(8, 7)
             ax = plot_obj.figure.gca()
             ax.set_aspect('auto')
-            plt.tight_layout()
+            try:
+                plt.tight_layout()
+            except TypeError:
+                pass
 
         elif plot_type == 3:
             plot_obj = excerpt.plot('scatter', 'measure', 'pitchClass', doneAction=None)
             plot_obj.figure.set_size_inches(w, h)
-            plt.tight_layout()
+            try:
+                plt.tight_layout()
+            except TypeError:
+                pass
 
         elif plot_type == 4:
             src = self._midi_score if self._midi_score else self._score
@@ -302,13 +305,19 @@ class VisualizationTab(QWidget):
                 excerpt4 = src.measures(start, end)
             plot_obj = excerpt4.plot('horizontalbarweighted', doneAction=None)
             plot_obj.figure.set_size_inches(w, h)
-            plt.tight_layout()
+            try:
+                plt.tight_layout()
+            except TypeError:
+                pass
 
         elif plot_type == 5:
             src = self._midi_score if self._midi_score else self._score
             plot_obj = src.measures(start, end).plot('3dbars', doneAction=None)
             plot_obj.figure.set_size_inches(w, h)
-            plt.tight_layout()
+            try:
+                plt.tight_layout()
+            except TypeError:
+                pass
 
         elif plot_type == 6:
             from music21.graph.plot import WindowedKey
@@ -337,7 +346,10 @@ class VisualizationTab(QWidget):
         if not path:
             return
         try:
-            self._current_fig.savefig(path, dpi=150, bbox_inches='tight')
+            try:
+                self._current_fig.savefig(path, dpi=150, bbox_inches='tight')
+            except TypeError:
+                self._current_fig.savefig(path, dpi=150)
             QMessageBox.information(self, tr("viz.save_done"),
                                     tr("dialog.saved_to", path=path))
         except Exception as e:
