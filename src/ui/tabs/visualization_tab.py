@@ -1,6 +1,7 @@
 """Visualization tab: generate music21 plots with interactive controls."""
 
 import sys
+import tempfile
 
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QGroupBox, QLabel,
@@ -134,12 +135,12 @@ class VisualizationTab(QWidget):
         for el in s.recurse():
             if isinstance(el, (music21.note.Note, music21.chord.Chord)):
                 m = el.getContextByClass('Measure')
-                mn = m.number if m else 0
+                mn = int(m.number) if m else 0
                 if isinstance(el, music21.note.Note):
-                    notes.append((el.pitch.pitchClass, el.quarterLength, mn))
+                    notes.append((int(el.pitch.pitchClass), float(el.quarterLength), mn))
                 else:
                     for p in el.pitches:
-                        notes.append((p.pitchClass, el.quarterLength, mn))
+                        notes.append((int(p.pitchClass), float(el.quarterLength), mn))
         return notes
 
     @staticmethod
@@ -201,24 +202,48 @@ class VisualizationTab(QWidget):
             self._btn_generate.setEnabled(False); self._btn_generate.repaint()
             from PyQt5.QtWidgets import QApplication; QApplication.processEvents()
             QApplication.setOverrideCursor(Qt.WaitCursor)
-            plot_obj = self._generate_plot(plot_idx, part_idx, start, end)
-            self._current_fig = plot_obj.figure if plot_obj and hasattr(plot_obj, 'figure') else plt.gcf()
+
+            # Determine which parts to plot
+            parts_to_plot = []
+            if part_idx == -1 and hasattr(self._score, 'parts'):
+                for pi in range(len(self._score.parts)):
+                    pn = self._score.parts[pi].partName or f"Part {pi+1}"
+                    parts_to_plot.append((pi, pn))
+            else:
+                pn = self._part_combo.currentText()
+                parts_to_plot.append((part_idx, pn))
+
+            png_paths = []
+            for pi, pn in parts_to_plot:
+                plot_obj = self._generate_plot(plot_idx, pi, start, end)
+                fig = plot_obj.figure if plot_obj and hasattr(plot_obj, 'figure') else plt.gcf()
+                if fig is None:
+                    continue
+                # Save each part's figure
+                fd, tmp_path = tempfile.mkstemp(suffix='.png', prefix=f'tta_{pn.replace(" ","_")}_')
+                os.close(fd)
+                fig.savefig(tmp_path, dpi=150, bbox_inches='tight')
+                png_paths.append(tmp_path)
+                plt.close(fig)
+
+            if not png_paths:
+                return
+
+            self._current_fig = None
             self._current_plot_idx = plot_idx
             self._btn_save.setEnabled(True)
 
-            # Display chart: save PNG → open with viewer
+            # Open all generated PNGs
             if sys.platform == 'win32':
-                png_path = self._save_figure_to_temp(self._current_fig)
-                if png_path:
-                    self._open_chart_in_viewer(png_path)
+                for p in png_paths:
+                    self._open_chart_in_viewer(p)
             else:
-                # macOS: save PNG → open with system Preview
                 import subprocess
-                png_path = self._save_figure_to_temp(self._current_fig)
-                if png_path:
-                    subprocess.Popen(['open', png_path])
+                for p in png_paths:
+                    subprocess.Popen(['open', p])
         except Exception as e:
             QMessageBox.warning(self, tr("viz.plot_error"), str(e))
+            import traceback; traceback.print_exc()
         self._btn_generate.setEnabled(True); QApplication.restoreOverrideCursor()
 
     def _get_excerpt(self, part_idx: int, start: int, end: int):
@@ -259,7 +284,11 @@ class VisualizationTab(QWidget):
         elif plot_type == 2:
             plot_obj = graph.plot.ScatterWeightedPitchClassQuarterLength(excerpt, doneAction=None)
             plot_obj.run()
-            plot_obj.figure.set_size_inches(w, h)
+            # Square figure — no elliptical stretching
+            plot_obj.figure.set_size_inches(8, 7)
+            ax = plot_obj.figure.gca()
+            ax.set_aspect('auto')
+            plt.tight_layout()
 
         elif plot_type == 3:
             plot_obj = excerpt.plot('scatter', 'measure', 'pitchClass', doneAction=None)
