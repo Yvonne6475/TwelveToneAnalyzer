@@ -273,10 +273,16 @@ class MergeSearchDialog(QDialog):
             if pi not in selected_parts:
                 continue
             pn = part.partName if part.partName else f"Part {pi+1}"
-            for m in part.getElementsByClass("Measure"):
+            meas_all = list(part.getElementsByClass("Measure"))
+            meas_range = [m for m in meas_all if start <= m.number <= end]
+            if not meas_range:
+                continue
+            for _i in range(1, len(meas_range)):
+                if meas_range[_i].getOffsetBySite(part) - meas_range[_i-1].getOffsetBySite(part) > 50:
+                    meas_range = meas_range[:_i]
+                    break
+            for m in meas_range:
                 bn = m.number
-                if bn < start or bn > end:
-                    continue
                 for el in m.notes:
                     global_off = m.offset + el.offset  # global offset
                     if isinstance(el, chord.Chord):
@@ -1054,5 +1060,3 @@ class TwelveToneTab(QWidget):
                                     tr("tt.row_png_saved", path=path))
         except Exception as e:
             QMessageBox.critical(self, tr("overview.export_failed"), str(e))
-
-

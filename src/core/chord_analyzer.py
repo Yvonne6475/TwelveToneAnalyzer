@@ -37,10 +37,16 @@ def extract_chords(score, selected, bar_range: tuple,
     for part_idx, part in enumerate(score.parts):
         part_name = part.partName if part.partName else f"Part {part_idx + 1}"
 
-        for measure in part.getElementsByClass('Measure'):
+        meas_all = list(part.getElementsByClass('Measure'))
+        meas_range = [m for m in meas_all if start_bar <= m.number <= end_bar]
+        if not meas_range:
+            continue
+        for _i in range(1, len(meas_range)):
+            if meas_range[_i].getOffsetBySite(part) - meas_range[_i-1].getOffsetBySite(part) > 50:
+                meas_range = meas_range[:_i]
+                break
+        for measure in meas_range:
             bar_number = measure.number
-            if not (start_bar <= bar_number <= end_bar):
-                continue
 
             for element in measure.recurse():
                 is_chord = isinstance(element, chord.Chord)
