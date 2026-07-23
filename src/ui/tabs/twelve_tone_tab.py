@@ -318,7 +318,7 @@ class MergeSearchDialog(QDialog):
                 bar_all_pcs.extend(pcs)
             bar_merged = list(dict.fromkeys(bar_all_pcs))
             bar_fc = chord.Chord(bar_merged).forteClass if len(bar_merged) > 1 else ""
-            output.append(f"  Merged ({len(bar_merged)}): {' '.join(map(str, bar_merged))}  Forte: {bar_fc}" if bar_fc else f"  Merged ({len(bar_merged)}): {' '.join(map(str, bar_merged))}")
+            output.append(f"  Merged (bar {bar}): {' '.join(map(str, bar_merged))}  Forte: {bar_fc}" if bar_fc else f"  Merged (bar {bar}): {' '.join(map(str, bar_merged))}")
 
         # --- Merged PC sequence ---
         unique_count = len(set(pc_seq))
@@ -495,10 +495,16 @@ class CustomMergeDialog(QDialog):
                 continue
             pn = part.partName if part.partName else f"Part {pi+1}"
             data[pn] = OrderedDict()
-            for m in part.getElementsByClass("Measure"):
+            meas_all = list(part.getElementsByClass('Measure'))
+            meas_range = [m for m in meas_all if m.number in bars]
+            if not meas_range:
+                continue
+            for _i in range(1, len(meas_range)):
+                if meas_range[_i].getOffsetBySite(part) - meas_range[_i-1].getOffsetBySite(part) > 50:
+                    meas_range = meas_range[:_i]
+                    break
+            for m in meas_range:
                 bn = m.number
-                if bn not in bars:
-                    continue
                 for el in m.recurse():
                     if isinstance(el, m21note.Note):
                         data[pn].setdefault(bn, []).append(el.pitch.pitchClass)

@@ -405,7 +405,7 @@ class AudioTab(QWidget):
         bound_times = r["bound_times"]
         n_seg = r["n_seg"]
         self._canvas.fig.clear()
-        self._canvas.set_size_inches(18, 24)
+        self._canvas.set_size_inches(18, 30)
         vmin, vmax = r["vmin"], r["vmax"]
         for i in range(n_seg):
             ax = self._canvas.fig.add_subplot(n_seg, 1, i + 1)
@@ -427,7 +427,7 @@ class AudioTab(QWidget):
         bound_times = r["bound_times"]
         n = len(bounds) - 1
         self._canvas.fig.clear()
-        self._canvas.set_size_inches(18, 24)
+        self._canvas.set_size_inches(18, 30)
         for i in range(n):
             ax = self._canvas.fig.add_subplot(n, 1, i + 1)
             seg = chroma[:, bounds[i]:bounds[i+1]]
@@ -448,7 +448,7 @@ class AudioTab(QWidget):
         bound_times = r["bound_times"]
         n = len(bounds) - 1
         self._canvas.fig.clear()
-        self._canvas.set_size_inches(18, 24)
+        self._canvas.set_size_inches(18, 30)
         for i in range(n):
             ax = self._canvas.fig.add_subplot(n, 1, i + 1)
             seg = mfccs[:, bounds[i]:bounds[i+1]]
@@ -467,7 +467,7 @@ class AudioTab(QWidget):
         bound_times = r["bound_times"]
         n = len(bounds) - 1
         self._canvas.fig.clear()
-        self._canvas.set_size_inches(18, 24)
+        self._canvas.set_size_inches(18, 30)
         for i in range(n):
             ax = self._canvas.fig.add_subplot(n, 1, i + 1)
             seg = tonnetz[:, bounds[i]:bounds[i+1]]
@@ -486,7 +486,7 @@ class AudioTab(QWidget):
         bound_times = r["bound_times"]
         n = len(bounds) - 1
         self._canvas.fig.clear()
-        self._canvas.set_size_inches(18, 24)
+        self._canvas.set_size_inches(18, 30)
         for i in range(n):
             ax = self._canvas.fig.add_subplot(n, 1, i + 1)
             seg = tempo[:, bounds[i]:bounds[i+1]]
@@ -504,7 +504,7 @@ class AudioTab(QWidget):
         import librosa.display
         seg_times = self._time_segments(n_seg)
         self._canvas.fig.clear()
-        self._canvas.set_size_inches(18, 24)
+        self._canvas.set_size_inches(18, 30)
         for i in range(n_seg):
             ax = self._canvas.fig.add_subplot(n_seg, 1, i + 1)
             t0, t1 = seg_times[i], seg_times[i+1]
@@ -527,7 +527,7 @@ class AudioTab(QWidget):
         D = compute_spectrogram(self._y, self._sr)
         bounds, bound_times = self._frame_segments(D.shape[1], n_seg, 1024, self._sr)
         self._canvas.fig.clear()
-        self._canvas.set_size_inches(18, 24)
+        self._canvas.set_size_inches(18, 30)
         vmin, vmax = D.min(), D.max()
         for i in range(n_seg):
             ax = self._canvas.fig.add_subplot(n_seg, 1, i + 1)
@@ -550,7 +550,7 @@ class AudioTab(QWidget):
 
         n = len(bounds) - 1
         self._canvas.fig.clear()
-        self._canvas.set_size_inches(18, 24)
+        self._canvas.set_size_inches(18, 30)
         for i in range(n):
             ax = self._canvas.fig.add_subplot(n, 1, i + 1)
             seg = chroma[:, bounds[i]:bounds[i+1]]
@@ -572,7 +572,7 @@ class AudioTab(QWidget):
 
         n = len(bounds) - 1
         self._canvas.fig.clear()
-        self._canvas.set_size_inches(18, 24)
+        self._canvas.set_size_inches(18, 30)
         for i in range(n):
             ax = self._canvas.fig.add_subplot(n, 1, i + 1)
             seg = mfccs[:, bounds[i]:bounds[i+1]]
@@ -592,7 +592,7 @@ class AudioTab(QWidget):
 
         n = len(bounds) - 1
         self._canvas.fig.clear()
-        self._canvas.set_size_inches(18, 24)
+        self._canvas.set_size_inches(18, 30)
         for i in range(n):
             ax = self._canvas.fig.add_subplot(n, 1, i + 1)
             seg = tonnetz[:, bounds[i]:bounds[i+1]]
@@ -612,7 +612,7 @@ class AudioTab(QWidget):
 
         n = len(bounds) - 1
         self._canvas.fig.clear()
-        self._canvas.set_size_inches(18, 24)
+        self._canvas.set_size_inches(18, 30)
         for i in range(n):
             ax = self._canvas.fig.add_subplot(n, 1, i + 1)
             seg = tempo[:, bounds[i]:bounds[i+1]]

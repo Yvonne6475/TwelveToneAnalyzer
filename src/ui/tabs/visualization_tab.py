@@ -86,7 +86,7 @@ class VisualizationTab(QWidget):
         left_layout.addWidget(self._btn_save)
 
         self._hint_label = QLabel(tr("viz.format_hint"))
-        self._hint_label.setStyleSheet("color: #999; font-size: 11px; padding: 4px 2px;")
+        self._hint_label.setStyleSheet("color: #999; font-size: 13px; padding: 4px 2px;")
         self._hint_label.setWordWrap(True)
         left_layout.addWidget(self._hint_label)
 

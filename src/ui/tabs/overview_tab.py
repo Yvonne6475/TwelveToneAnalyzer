@@ -59,10 +59,6 @@ class OverviewTab(QWidget):
         # Actions
         btn_layout = QHBoxLayout()
         self._btn_full_plot = QPushButton(tr("overview.btn_full_plot"))
-        self._btn_full_plot.setProperty("accent", "green")
-        self._btn_full_plot.setEnabled(False)
-        self._btn_full_plot.clicked.connect(self._on_full_plot)
-        btn_layout.addWidget(self._btn_full_plot)
 
         btn_layout.addStretch()
         layout.addLayout(btn_layout)
@@ -84,7 +80,6 @@ class OverviewTab(QWidget):
             self._lbl_measures.setText("")
 
         self._populate_table()
-        self._btn_full_plot.setEnabled(True)
 
     def _populate_table(self):
         self._table.setRowCount(len(self._diagnostics))
@@ -105,16 +100,3 @@ class OverviewTab(QWidget):
 
     def get_part_names(self) -> list[str]:
         return [d.part_name for d in self._diagnostics]
-
-    def _on_full_plot(self):
-        if not self._score:
-            return
-        try:
-            import matplotlib.pyplot as plt
-            max_m = get_measure_range(self._score)[1]
-            p = self._score.measures(1, max_m).plot(show=False)
-            p.figure.set_size_inches(16, 16)
-            plt.title(f"Full Score (m.1-{max_m})")
-            plt.show()
-        except Exception as e:
-            QMessageBox.warning(self, tr("overview.plot_error"), str(e))

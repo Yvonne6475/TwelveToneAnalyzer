@@ -19,6 +19,7 @@ from src.core.set_relations import (
 )
 from src.utils.i18n import tr
 
+from src.core.merge_utils import MergeSelectorDialog, select_merge_items
 
 def _pc_str(pcs) -> str:
     return " ".join(map(str, pcs))
@@ -151,6 +152,9 @@ class SetRelationsTab(QWidget):
         self._btn_from_chord = QPushButton(tr("sr.btn_from_chord"))
         self._btn_from_chord.clicked.connect(self._on_from_chord)
         target_row.addWidget(self._btn_from_chord)
+        self._btn_merge = QPushButton(tr("forte.btn_merge"))
+        self._btn_merge.clicked.connect(self._on_merge_from_score)
+        target_row.addWidget(self._btn_merge)
         layout.addLayout(target_row)
 
         # ── Results (scrollable) ──
@@ -220,7 +224,7 @@ class SetRelationsTab(QWidget):
 
     def _parse_universe(self):
         text = self._universe_edit.toPlainText().strip()
-        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        lines = [l.strip() for l in text.splitlines() if l.strip() and not l.strip().startswith('#')]
         universe = []
         for line in lines:
             try:
@@ -474,6 +478,55 @@ class SetRelationsTab(QWidget):
                 lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
                 gl.addWidget(lbl)
         self._results_layout.addWidget(group)
+
+    def _on_merge_from_score(self):
+        """Merge from score and load selected sets into universe."""
+        from src.core.merge_utils import MergeSelectorDialog, select_merge_items
+        from collections import OrderedDict
+        from music21 import chord as _chord
+        from PyQt5.QtWidgets import QDialog
+        mw = getattr(self, '_main_window', None)
+        if not mw or not hasattr(mw, '_score') or not mw._score:
+            QMessageBox.information(self, tr("forte.title"), tr("forte.no_chord_msg"))
+            return
+        dlg = MergeSelectorDialog(mw._score, self)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        data, all_pcs = dlg.get_result()
+        bar_detail = OrderedDict()
+        for pn in data:
+            for bn in data[pn]:
+                bar_detail.setdefault(bn, {})[pn] = sorted(set(data[pn][bn]))
+        bar_items, indiv_items = [], []
+        for bn in sorted(bar_detail):
+            all_pb = set()
+            for pn in bar_detail[bn]:
+                pcs = bar_detail[bn][pn]; all_pb.update(pcs)
+                if len(pcs) > 1:
+                    indiv_items.append({"pcs": pcs, "bar": bn, "part": f"{pn} [{', '.join(map(str, pcs))}]", "forte": _chord.Chord(pcs).forteClass})
+            merged = sorted(all_pb)
+            if len(merged) > 1:
+                bar_items.append({"pcs": merged, "bar": bn, "parts": ", ".join(f"{pn} [{', '.join(map(str, bar_detail[bn][pn]))}]" for pn in bar_detail[bn]), "forte": _chord.Chord(merged).forteClass})
+        sel = select_merge_items(self, bar_items + indiv_items, bar_items)
+        if sel:
+            sel_set = set(sel); out_lines = []
+            for _it in bar_items:
+                _s = " ".join(map(str, _it["pcs"]))
+                if _s in sel_set:
+                    out_lines.append(f"# [Bar Merge] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('parts','')})")
+                    out_lines.append(_s)
+            for _it in indiv_items:
+                _s = " ".join(map(str, _it["pcs"]))
+                if _s in sel_set:
+                    out_lines.append(f"# [Chord] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('part','')})")
+                    out_lines.append(_s)
+            if not out_lines:
+                out_lines = list(sel)
+            cur = self._universe_edit.toPlainText().strip()
+            if cur:
+                self._universe_edit.setText(cur + "\n" + "\n".join(out_lines))
+            else:
+                self._universe_edit.setText("\n".join(out_lines))
 
     def _display_complex(self, cpx, nexus_info=None):
         self._clear_results()

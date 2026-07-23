@@ -242,20 +242,24 @@ class ChordTab(QWidget):
             # Compute merged
             all_pcs = set()
             part_names = set()
-            constituents = []
             for r in bar_rs:
                 all_pcs.update(r.pc_set)
                 part_names.add(r.part_name)
-                pcs_str = " ".join(map(str, r.pc_set))
-                constituents.append(f"[{pcs_str}]({r.part_name})")
+            part_pcs = {}
+            for r in bar_rs:
+                part_pcs.setdefault(r.part_name, []).extend(r.pc_set)
+            parts_list = []
+            for pn in part_pcs:
+                uniq = sorted(set(part_pcs[pn]))
+                parts_list.append(f"{pn} [{', '.join(map(str, uniq))}]")
             merged_pcs = sorted(all_pcs)
             if len(merged_pcs) > 1:
                 c = chord.Chord(merged_pcs)
                 rows.append(("merged", {
                     "bar": bar,
-                    "offset": "merged",
+                    "offset": f"merged (bar {bar})",
                     "part_name": "\n".join(sorted(part_names)),
-                    "notes": "merged: " + " + ".join(constituents),
+                    "notes": f"merged ({len(merged_pcs)}): {' + '.join(parts_list)}",
                     "pc_set": str(list(c.normalOrder)),
                     "normal_order": str(list(c.normalOrder)),
                     "prime_form": c.primeFormString,

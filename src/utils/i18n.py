@@ -83,6 +83,7 @@ TRANSLATIONS = {
     "forte.btn_copy": {"zh": "复制结果", "en": "Copy Results"},
     "forte.btn_export_csv": {"zh": "导出 CSV", "en": "Export CSV"},
     "forte.btn_from_chord": {"zh": "从和弦分析获取", "en": "Get from Chords Analysis"},
+    "forte.btn_merge": {"zh": "从乐谱合并", "en": "Merge from Score"},
     "forte.no_chord_msg": {"zh": "请先在和弦分析标签页中提取和弦。", "en": "Please extract chords first in the Chords Analysis tab."},
     "forte.from_chord_title": {"zh": "选择和弦集合", "en": "Select Chord Sets"},
     "forte.btn_close": {"zh": "关闭", "en": "Close"},

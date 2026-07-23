@@ -18,6 +18,7 @@ from src.core.inclusion_lattice import (
 )
 from src.ui.widgets.score_opener import setup_open_menu
 from src.ui.widgets.plot_canvas import PlotCanvas
+from src.core.merge_utils import MergeSelectorDialog, select_merge_items
 from src.utils.i18n import tr
 from src.utils.config import temp_default_path
 
@@ -123,6 +124,9 @@ class LatticeTab(QWidget):
         self._btn_from_chord.setEnabled(False)
         self._btn_from_chord.clicked.connect(self._on_from_chord)
         quick_row.addWidget(self._btn_from_chord)
+        self._btn_merge = QPushButton(tr("forte.btn_merge"))
+        self._btn_merge.clicked.connect(self._on_merge_from_score)
+        quick_row.addWidget(self._btn_merge)
 
         self._chord_combo = QComboBox()
         self._chord_combo.setMinimumWidth(320)
@@ -435,7 +439,7 @@ class LatticeTab(QWidget):
                                 tr("lattice.collections_empty"))
             return
 
-        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        lines = [l.strip() for l in text.splitlines() if l.strip() and not l.strip().startswith('#')]
         self._chord_entries = []
         self._chord_combo.blockSignals(True)
         self._chord_combo.clear()
@@ -531,3 +535,60 @@ class LatticeTab(QWidget):
 
         QMessageBox.information(self, tr("lattice.saved"),
                                 tr("dialog.saved_to", path=path))
+
+    def _on_merge_from_score(self):
+        """Merge from score and add selected sets to collections."""
+        from src.core.merge_utils import MergeSelectorDialog, select_merge_items
+        from collections import OrderedDict
+        from music21 import chord as _chord
+        from PyQt5.QtWidgets import QDialog
+        mw = getattr(self, '_main_window', None)
+        if not mw or not hasattr(mw, '_score') or not mw._score:
+            QMessageBox.information(self, tr("forte.title"), tr("forte.no_chord_msg"))
+            return
+        dlg = MergeSelectorDialog(mw._score, self)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        data, all_pcs = dlg.get_result()
+        bar_detail = OrderedDict()
+        for pn in data:
+            for bn in data[pn]:
+                bar_detail.setdefault(bn, {})[pn] = sorted(set(data[pn][bn]))
+        bar_items, indiv_items = [], []
+        for bn in sorted(bar_detail):
+            all_pb = set()
+            for pn in bar_detail[bn]:
+                pcs = bar_detail[bn][pn]
+                all_pb.update(pcs)
+                if len(pcs) > 1:
+                    indiv_items.append({"pcs": pcs, "bar": bn, "part": f"{pn} [{', '.join(map(str, pcs))}]", "forte": _chord.Chord(pcs).forteClass})
+            merged = sorted(all_pb)
+            if len(merged) > 1:
+                bar_items.append({"pcs": merged, "bar": bn, "parts": ", ".join(f"{pn} [{', '.join(map(str, bar_detail[bn][pn]))}]" for pn in bar_detail[bn]), "forte": _chord.Chord(merged).forteClass})
+        sel = select_merge_items(self, bar_items + indiv_items, bar_items)
+        if sel:
+            sel_set = set(sel)
+            out = []
+            self._chord_entries = []
+            self._chord_combo.blockSignals(True)
+            self._chord_combo.clear()
+            for _it in bar_items:
+                _s = " ".join(map(str, _it["pcs"]))
+                if _s in sel_set:
+                    out.append(f"# [Bar Merge] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('parts','')})")
+                    out.append(_s)
+                    self._chord_entries.append(_it["pcs"])
+                    self._chord_combo.addItem(f"[Bar Merge] {_it['bar']}: [{_s}] ({_it.get('parts','')})")
+            for _it in indiv_items:
+                _s = " ".join(map(str, _it["pcs"]))
+                if _s in sel_set:
+                    out.append(f"# [Chord] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('part','')})")
+                    out.append(_s)
+                    self._chord_entries.append(_it["pcs"])
+                    self._chord_combo.addItem(f"[Chord] {_it['bar']}: [{_s}] ({_it.get('part','')})")
+            self._chord_combo.blockSignals(False)
+            cur = self._collections_edit.toPlainText().strip()
+            if cur:
+                self._collections_edit.setText(cur + "\n" + "\n".join(out))
+            else:
+                self._collections_edit.setText("\n".join(out))

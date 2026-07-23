@@ -11,6 +11,7 @@ from music21 import chord
 
 from src.utils.i18n import tr, tr_list
 from src.utils.config import temp_default_path
+from src.core.merge_utils import MergeSelectorDialog
 
 
 class ForteNameTab(QWidget):
@@ -55,6 +56,10 @@ class ForteNameTab(QWidget):
         self._btn_from_chord = QPushButton(tr("forte.btn_from_chord"))
         self._btn_from_chord.clicked.connect(self._on_from_chord)
         btn_row.addWidget(self._btn_from_chord)
+
+        self._btn_merge = QPushButton(tr("forte.btn_merge"))
+        self._btn_merge.clicked.connect(self._on_merge_from_score)
+        btn_row.addWidget(self._btn_merge)
 
         btn_row.addStretch()
         layout.addLayout(btn_row)
@@ -105,7 +110,7 @@ class ForteNameTab(QWidget):
         self._btn_analyze.setEnabled(False); self._btn_analyze.repaint()
         from PyQt5.QtWidgets import QApplication; QApplication.processEvents()
         QApplication.setOverrideCursor(Qt.WaitCursor)
-        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        lines = [l.strip() for l in text.splitlines() if l.strip() and not l.strip().startswith('#')]
         self._results = []
 
         for line in lines:
@@ -292,3 +297,90 @@ class ForteNameTab(QWidget):
 
         if selected:
             self._input_edit.setText("\n".join(selected))
+
+    def _on_merge_from_score(self):
+        """Merge selected parts/bars from the score and analyze."""
+        from collections import OrderedDict
+        from music21 import chord as m21chord
+        from PyQt5.QtWidgets import QDialog
+        mw = self._main_window
+        if not mw or not hasattr(mw, '_score') or not mw._score:
+            QMessageBox.information(self, tr("forte.title"),
+                                    tr("forte.no_chord_msg"))
+            return
+        dlg = MergeSelectorDialog(mw._score, self)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        data, all_pcs = dlg.get_result()
+        # Build selectable items: bar-merged + per-part
+        from music21 import chord as _chord
+        bar_items = []
+        indiv_items = []
+        bar_detail = OrderedDict()
+        for pn in data:
+            for bn in data[pn]:
+                bar_detail.setdefault(bn, {})[pn] = sorted(set(data[pn][bn]))
+        for bn in sorted(bar_detail):
+            all_pcs_for_bar = set()
+            bar_parts = []
+            for pn in bar_detail[bn]:
+                pcs = bar_detail[bn][pn]
+                all_pcs_for_bar.update(pcs)
+                bar_parts.append(f"{pn} [{', '.join(map(str, pcs))}]")
+                if len(pcs) > 1:
+                    indiv_items.append({"pcs": pcs, "bar": bn, "part": f"{pn} [{', '.join(map(str, pcs))}]", "forte": _chord.Chord(pcs).forteClass})
+                merged_pcs = sorted(all_pcs_for_bar)
+            if len(merged_pcs) > 1:
+                parts_str = ", ".join(bar_parts)
+                bar_items.append({"pcs": merged_pcs, "bar": bn, "parts": parts_str, "forte": _chord.Chord(merged_pcs).forteClass})
+        all_items = bar_items + indiv_items
+        # --- Selection dialog (same as Get from chords) ---
+        from PyQt5.QtWidgets import (QDialog as _QDialog, QVBoxLayout as _QVBox,
+            QListWidget as _QList, QCheckBox as _QCheckBox, QDialogButtonBox as _QBtnBox)
+        from PyQt5.QtCore import Qt as _Qt
+        _dlg = _QDialog(self)
+        _dlg.setWindowTitle(tr("forte.from_chord_title"))
+        _dlg.setMinimumSize(500, 400)
+        _layout = _QVBox(_dlg)
+        _chk_all = _QCheckBox(tr("forte.select_all"))
+        _chk_all.setChecked(True)
+        _layout.addWidget(_chk_all)
+        _lst = _QList()
+        for _idx, _item in enumerate(all_items):
+            _pc_str = " ".join(map(str, _item["pcs"]))
+            if _idx < len(bar_items):
+                _label = tr("forte.bar_merge_item", bar=_item["bar"], pc=_pc_str, forte=_item["forte"])
+                _label += f" ({_item.get('parts','')})"
+            else:
+                _label = tr("forte.chord_item", bar=_item["bar"], pc=_pc_str, forte=_item["forte"])
+                _label += f" ({_item.get('part','')})"
+            _lst.addItem(_label)
+            _lst.item(_lst.count() - 1).setCheckState(_Qt.Checked)
+            _lst.item(_lst.count() - 1).setData(_Qt.UserRole, _pc_str)
+        _layout.addWidget(_lst, 1)
+        _chk_all.toggled.connect(lambda c: [_lst.item(i).setCheckState(_Qt.Checked if c else _Qt.Unchecked) for i in range(_lst.count())])
+        _buttons = _QBtnBox(_QBtnBox.Ok | _QBtnBox.Cancel)
+        _buttons.accepted.connect(_dlg.accept)
+        _buttons.rejected.connect(_dlg.reject)
+        _layout.addWidget(_buttons)
+        if _dlg.exec_() != _QDialog.Accepted:
+            return
+        _selected = []
+        for i in range(_lst.count()):
+            if _lst.item(i).checkState() == _Qt.Checked:
+                _selected.append(_lst.item(i).data(_Qt.UserRole))
+        if _selected:
+            sel_set = set(_selected); out = []
+            for _it in bar_items:
+                _s = " ".join(map(str, _it["pcs"]))
+                if _s in sel_set:
+                    out.append(f"# [Bar Merge] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('parts','')})")
+                    out.append(_s)
+            for _it in indiv_items:
+                _s = " ".join(map(str, _it["pcs"]))
+                if _s in sel_set:
+                    out.append(f"# [Chord] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('part','')})")
+                    out.append(_s)
+            if not out:
+                out = list(_selected)
+            self._input_edit.setText("\n".join(out))

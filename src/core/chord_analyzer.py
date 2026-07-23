@@ -113,25 +113,35 @@ def format_as_markdown(results: list[ChordResult]) -> str:
         bar_results = [r for r in results if r.bar == bar]
         for r in bar_results:
             lines.append(
-                f"| {r.bar} | {r.offset} | {r.part_name} | "
-                f"{r.notes} | {r.pc_set} | {r.normal_order} | {r.prime_form} | {r.forte_class} | {r.pitch_range} |"
+                f"| {r.bar} | {r.offset} | {r.part_name} |"
+                f" {r.notes} | {r.pc_set} |"
+                f" {r.normal_order} | {r.prime_form} | {r.forte_class} | {r.pitch_range} |"
             )
         # Add merged row for this bar
         all_pcs = set()
         part_names = set()
-        constituents = []
         for r in bar_results:
             all_pcs.update(r.pc_set)
             part_names.add(r.part_name)
-            pcs_str = " ".join(map(str, r.pc_set))
-            constituents.append(f"[{pcs_str}]({r.part_name})")
+        # Group by part
+        part_pcs = {}
+        for r in bar_results:
+            part_pcs.setdefault(r.part_name, []).extend(r.pc_set)
+        constituents = []
+        for pn in part_pcs:
+            uniq = sorted(set(part_pcs[pn]))
+            constituents.append(f"[{' '.join(map(str, uniq))}]({pn})")
         merged_pcs = sorted(all_pcs)
         if len(merged_pcs) > 1:
             c = chord.Chord(merged_pcs)
-            merged_notes = "merged: " + " + ".join(constituents)
+            # Build per-part breakdown inline (NOT using [text](url) format which breaks markdown)
+            parts_list = []
+            for pn in part_pcs:
+                uniq = sorted(set(part_pcs[pn]))
+                parts_list.append(f"{pn} [{', '.join(map(str, uniq))}]")
             lines.append(
-                f"| {bar} | merged | {'/'.join(sorted(part_names))} | "
-                f"{merged_notes} | {list(c.normalOrder)} | {list(c.normalOrder)} | {c.primeFormString} | {c.forteClass} | |"
+                f"| {bar} | merged (bar {bar}) | {'/'.join(sorted(part_names))} | "
+                f"merged ({len(merged_pcs)}): {' + '.join(parts_list)} | {list(c.normalOrder)} | {list(c.normalOrder)} | {c.primeFormString} | {c.forteClass} | |"
             )
     return "\n".join(lines)
 
