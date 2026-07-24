@@ -24,12 +24,17 @@ def select_merge_items(parent, all_items, bar_items):
     _lst = QListWidget()
     for _i, _it in enumerate(all_items):
         _pc = " ".join(map(str, _it["pcs"]))
-        if _i < len(bar_items):
-            _lab = f"[Bar Merge] Bar {_it['bar']}: [{_pc}] Forte: {_it['forte']}"
+        if 'part_name' in _it:
+            _seq = " ".join(map(str, _it.get('seq', _it['pcs'])))
+            _lab = f"[Part Merge] {_it['part_name']} (Bars {_it['bar_start']}-{_it['bar_end']}): Constituents: [{_seq}] Forte: {_it['forte']}"
+        elif 'parts' in _it:
+            _seq_pc = " ".join(map(str, _it.get('orig_seq', _it['pcs'])))
+            _lab = f"[Bar Merge] Bar {_it['bar']}: [{_seq_pc}] Forte: {_it['forte']}"
             if _it.get('parts'):
                 _lab += f" ({_it['parts']})"
         else:
-            _lab = f"[Chord] Bar {_it['bar']}: [{_pc}] Forte: {_it['forte']}"
+            _chord_pc = " ".join(map(str, _it.get('orig_pcs', _it['pcs'])))
+            _lab = f"[Chord] Bar {_it['bar']}: [{_chord_pc}] Forte: {_it['forte']}"
             if _it.get('part'):
                 _lab += f" ({_it['part']})"
         _lst.addItem(_lab)
@@ -64,8 +69,9 @@ def merge_from_score(score, selected_parts: set, start: int, end: int):
         meas_range = [m for m in meas_all if start <= m.number <= end]
         if not meas_range:
             continue
+        # Detect section breaks: measure number didn't increase (reset)
         for _i in range(1, len(meas_range)):
-            if meas_range[_i].getOffsetBySite(part) - meas_range[_i-1].getOffsetBySite(part) > 50:
+            if meas_range[_i].number <= meas_range[_i-1].number:
                 meas_range = meas_range[:_i]
                 break
         for m in meas_range:

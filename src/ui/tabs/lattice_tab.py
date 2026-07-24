@@ -554,39 +554,69 @@ class LatticeTab(QWidget):
         for pn in data:
             for bn in data[pn]:
                 bar_detail.setdefault(bn, {})[pn] = sorted(set(data[pn][bn]))
+        part_items = []
+        for pn in data:
+            all_pn_pcs = set(); seq_pcs = []; seen_in_bar = set(); bars_seen = []
+            for bn in data[pn]:
+                pcs_orig = data[pn][bn]; seen_in_bar.clear()
+                for pc in pcs_orig:
+                    if pc in seen_in_bar: continue
+                    seen_in_bar.add(pc)
+                    if pc not in all_pn_pcs: seq_pcs.append(pc)
+                pcs = sorted(set(pcs_orig)); all_pn_pcs.update(pcs); bars_seen.append(bn)
+            if len(bars_seen) > 1 and len(all_pn_pcs) > 1:
+                sp = sorted(all_pn_pcs)
+                part_items.append({"pcs": sp, "seq": seq_pcs, "part_name": pn,
+                    "bar_start": min(bars_seen), "bar_end": max(bars_seen),
+                    "forte": _chord.Chord(sp).forteClass})
         bar_items, indiv_items = [], []
         for bn in sorted(bar_detail):
             all_pb = set()
             for pn in bar_detail[bn]:
                 pcs = bar_detail[bn][pn]
+                orig_pcs = list(dict.fromkeys(data[pn][bn]))
                 all_pb.update(pcs)
                 if len(pcs) > 1:
-                    indiv_items.append({"pcs": pcs, "bar": bn, "part": f"{pn} [{', '.join(map(str, pcs))}]", "forte": _chord.Chord(pcs).forteClass})
+                    indiv_items.append({"pcs": pcs, "orig_pcs": orig_pcs, "bar": bn, "part": f"{pn} [{', '.join(map(str, orig_pcs))}]", "forte": _chord.Chord(pcs).forteClass})
             merged = sorted(all_pb)
             if len(merged) > 1:
                 bar_items.append({"pcs": merged, "bar": bn, "parts": ", ".join(f"{pn} [{', '.join(map(str, bar_detail[bn][pn]))}]" for pn in bar_detail[bn]), "forte": _chord.Chord(merged).forteClass})
-        sel = select_merge_items(self, bar_items + indiv_items, bar_items)
+        sel = select_merge_items(self, part_items + bar_items + indiv_items, bar_items)
         if sel:
             sel_set = set(sel)
             out = []
             self._chord_entries = []
             self._chord_combo.blockSignals(True)
             self._chord_combo.clear()
+            for _it in part_items:
+                _pk = " ".join(map(str, _it["pcs"]))
+                _s = " ".join(map(str, _it.get('seq', _it['pcs'])))
+                if _pk in sel_set:
+                    out.append(f"# [Part Merge] {_it['part_name']} (Bars {_it['bar_start']}-{_it['bar_end']}): [{_pk}] Forte: {_it['forte']}")
+                    out.append(f"# Constituents: [{_s}]({_it['part_name']})")
+                    out.append(_s)
+                    self._chord_entries.append(_it["pcs"])
+                    self._chord_combo.addItem(f"[Part Merge] {_it['part_name']}: [{_s}] ({_it['forte']})")
             for _it in bar_items:
-                _s = " ".join(map(str, _it["pcs"]))
-                if _s in sel_set:
+                _pk = " ".join(map(str, _it["pcs"]))
+                _s = " ".join(map(str, _it.get('orig_seq', _it["pcs"])))
+                if _pk in sel_set:
                     out.append(f"# [Bar Merge] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('parts','')})")
                     out.append(_s)
                     self._chord_entries.append(_it["pcs"])
                     self._chord_combo.addItem(f"[Bar Merge] {_it['bar']}: [{_s}] ({_it.get('parts','')})")
             for _it in indiv_items:
-                _s = " ".join(map(str, _it["pcs"]))
-                if _s in sel_set:
+                _pk = " ".join(map(str, _it["pcs"]))
+                _s = " ".join(map(str, _it.get('orig_pcs', _it["pcs"])))
+                if _pk in sel_set:
                     out.append(f"# [Chord] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('part','')})")
                     out.append(_s)
                     self._chord_entries.append(_it["pcs"])
                     self._chord_combo.addItem(f"[Chord] {_it['bar']}: [{_s}] ({_it.get('part','')})")
             self._chord_combo.blockSignals(False)
+            self._chord_combo.setEnabled(True)
+            self._btn_chord_relations.setEnabled(True)
+            self._btn_save.setEnabled(True)
             cur = self._collections_edit.toPlainText().strip()
             if cur:
                 self._collections_edit.setText(cur + "\n" + "\n".join(out))

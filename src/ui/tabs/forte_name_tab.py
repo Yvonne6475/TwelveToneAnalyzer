@@ -21,6 +21,7 @@ class ForteNameTab(QWidget):
         super().__init__()
         self._main_window = main_window
         self._results = []
+        self._bar_info = {}
         self._setup_ui()
 
     def _setup_ui(self):
@@ -67,7 +68,9 @@ class ForteNameTab(QWidget):
         headers = tr_list("forte.table.headers")
         self._table = QTableWidget(0, len(headers))
         self._table.setHorizontalHeaderLabels(headers)
-        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self._table.setColumnWidth(0, 600)
+        self._table.setWordWrap(True)
+        self._table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self._table.setHorizontalScrollMode(QTableWidget.ScrollPerPixel)
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
         layout.addWidget(self._table, 1)
@@ -110,23 +113,38 @@ class ForteNameTab(QWidget):
         self._btn_analyze.setEnabled(False); self._btn_analyze.repaint()
         from PyQt5.QtWidgets import QApplication; QApplication.processEvents()
         QApplication.setOverrideCursor(Qt.WaitCursor)
-        lines = [l.strip() for l in text.splitlines() if l.strip() and not l.strip().startswith('#')]
+        raw_lines = text.splitlines()
+        parsed = []
+        pending_comments = []
+        for raw_line in raw_lines:
+            line = raw_line.strip()
+            if not line: continue
+            if line.startswith('#'):
+                pending_comments.append(line)
+                continue
+            combined = " | ".join(l.lstrip('# ') for l in pending_comments)
+            parsed.append((combined, line))
+            pending_comments = []
         self._results = []
 
-        for line in lines:
+        for bar_info_line, line in parsed:
             try:
                 pcs = list(map(int, line.split()))
             except ValueError:
                 continue
             if not pcs:
                 continue
+            full_comment = ""
+            if bar_info_line:
+                full_comment = bar_info_line
             c = chord.Chord(pcs)
             normal = list(c.normalOrder)
-            intervals = self._compute_intervals(normal)
+            intervals = self._compute_intervals(pcs)
             iv = "".join(map(str, c.intervalVector))
-            p_form, i_form, r_form, ri_form = self._compute_forms(normal)
+            p_form, i_form, r_form, ri_form = self._compute_forms(pcs)
             self._results.append({
                 "input": pcs,
+                "bar_info": full_comment,
                 "normal": normal,
                 "intervals": intervals,
                 "iv": iv,
@@ -140,8 +158,11 @@ class ForteNameTab(QWidget):
 
         self._table.setRowCount(len(self._results))
         for row, r in enumerate(self._results):
+            display_pc = " ".join(map(str, r["input"]))
+            if r.get("bar_info"):
+                display_pc = r["bar_info"] + "  " + display_pc
             self._table.setItem(row, 0,
-                QTableWidgetItem(" ".join(map(str, r["input"]))))
+                QTableWidgetItem(display_pc))
             self._table.setItem(row, 1,
                 QTableWidgetItem(str(r["normal"])))
             self._table.setItem(row, 2,
@@ -247,7 +268,7 @@ class ForteNameTab(QWidget):
             indiv_items.append({"pcs": r.pc_set, "bar": r.bar, "part": r.part_name, "forte": r.forte_class})
 
         # bar-merged first, then individual
-        all_items = bar_items + indiv_items
+        all_items = part_items + bar_items + indiv_items
 
         self._btn_from_chord.setEnabled(True); QApplication.restoreOverrideCursor()
         dlg = QDialog(self)
@@ -320,20 +341,42 @@ class ForteNameTab(QWidget):
         for pn in data:
             for bn in data[pn]:
                 bar_detail.setdefault(bn, {})[pn] = sorted(set(data[pn][bn]))
+        part_items = []
+        for pn in data:
+            all_pn_pcs = set()
+            seq_pcs = []
+            seen_in_bar = set()
+            bars_seen = []
+            for bn in data[pn]:
+                pcs_orig = data[pn][bn]
+                seen_in_bar.clear()
+                for pc in pcs_orig:
+                    if pc in seen_in_bar: continue
+                    seen_in_bar.add(pc)
+                    if pc not in all_pn_pcs: seq_pcs.append(pc)
+                pcs = sorted(set(pcs_orig))
+                all_pn_pcs.update(pcs)
+                bars_seen.append(bn)
+            if len(bars_seen) > 1 and len(all_pn_pcs) > 1:
+                sorted_pcs = sorted(all_pn_pcs)
+                part_items.append({"pcs": sorted_pcs, "seq": seq_pcs, "part_name": pn,
+                    "bar_start": min(bars_seen), "bar_end": max(bars_seen),
+                    "forte": _chord.Chord(sorted_pcs).forteClass})
         for bn in sorted(bar_detail):
             all_pcs_for_bar = set()
             bar_parts = []
             for pn in bar_detail[bn]:
                 pcs = bar_detail[bn][pn]
+                orig_pcs = list(dict.fromkeys(data[pn][bn]))
                 all_pcs_for_bar.update(pcs)
-                bar_parts.append(f"{pn} [{', '.join(map(str, pcs))}]")
+                bar_parts.append(f"{pn} [{', '.join(map(str, orig_pcs))}]")
                 if len(pcs) > 1:
-                    indiv_items.append({"pcs": pcs, "bar": bn, "part": f"{pn} [{', '.join(map(str, pcs))}]", "forte": _chord.Chord(pcs).forteClass})
-                merged_pcs = sorted(all_pcs_for_bar)
+                    indiv_items.append({"pcs": pcs, "orig_pcs": orig_pcs, "bar": bn, "part": f"{pn} [{', '.join(map(str, orig_pcs))}]", "forte": _chord.Chord(pcs).forteClass})
+            merged_pcs = sorted(all_pcs_for_bar)
             if len(merged_pcs) > 1:
                 parts_str = ", ".join(bar_parts)
                 bar_items.append({"pcs": merged_pcs, "bar": bn, "parts": parts_str, "forte": _chord.Chord(merged_pcs).forteClass})
-        all_items = bar_items + indiv_items
+        all_items = part_items + bar_items + indiv_items
         # --- Selection dialog (same as Get from chords) ---
         from PyQt5.QtWidgets import (QDialog as _QDialog, QVBoxLayout as _QVBox,
             QListWidget as _QList, QCheckBox as _QCheckBox, QDialogButtonBox as _QBtnBox)
@@ -348,11 +391,16 @@ class ForteNameTab(QWidget):
         _lst = _QList()
         for _idx, _item in enumerate(all_items):
             _pc_str = " ".join(map(str, _item["pcs"]))
-            if _idx < len(bar_items):
-                _label = tr("forte.bar_merge_item", bar=_item["bar"], pc=_pc_str, forte=_item["forte"])
+            if 'part_name' in _item:
+                _seq_str = " ".join(map(str, _item.get('seq', _item['pcs'])))
+                _label = f"[Part Merge] {_item['part_name']} (Bars {_item['bar_start']}-{_item['bar_end']}): [{_seq_str}] Forte: {_item['forte']}"
+            elif 'parts' in _item:
+                _disp_pc = " ".join(map(str, _item.get('orig_seq', _item['pcs'])))
+                _label = tr("forte.bar_merge_item", bar=_item["bar"], pc=_disp_pc, forte=_item["forte"])
                 _label += f" ({_item.get('parts','')})"
             else:
-                _label = tr("forte.chord_item", bar=_item["bar"], pc=_pc_str, forte=_item["forte"])
+                _chord_pc = " ".join(map(str, _item.get('orig_pcs', _item['pcs'])))
+                _label = tr("forte.chord_item", bar=_item["bar"], pc=_chord_pc, forte=_item["forte"])
                 _label += f" ({_item.get('part','')})"
             _lst.addItem(_label)
             _lst.item(_lst.count() - 1).setCheckState(_Qt.Checked)
@@ -371,14 +419,25 @@ class ForteNameTab(QWidget):
                 _selected.append(_lst.item(i).data(_Qt.UserRole))
         if _selected:
             sel_set = set(_selected); out = []
+            for _it in part_items:
+                _pk = " ".join(map(str, _it["pcs"]))
+                _s = " ".join(map(str, _it.get('seq', _it['pcs'])))
+                if _pk in sel_set:
+                    out.append(f"# [Part Merge] {_it['part_name']} (Bars {_it['bar_start']}-{_it['bar_end']}): [{_pk}] Forte: {_it['forte']}")
+                    out.append(f"# Constituents: [{_s}]({_it['part_name']})")
+                    out.append(_s)
+                    key = tuple(_it["pcs"])
+                    if key not in self._bar_info: self._bar_info[key] = f"{_it['part_name']} (Bars {_it['bar_start']}-{_it['bar_end']})"
             for _it in bar_items:
-                _s = " ".join(map(str, _it["pcs"]))
-                if _s in sel_set:
+                _pk = " ".join(map(str, _it["pcs"]))
+                _s = " ".join(map(str, _it.get('orig_seq', _it["pcs"])))
+                if _pk in sel_set:
                     out.append(f"# [Bar Merge] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('parts','')})")
                     out.append(_s)
             for _it in indiv_items:
-                _s = " ".join(map(str, _it["pcs"]))
-                if _s in sel_set:
+                _pk = " ".join(map(str, _it["pcs"]))
+                _s = " ".join(map(str, _it.get('orig_pcs', _it["pcs"])))
+                if _pk in sel_set:
                     out.append(f"# [Chord] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('part','')})")
                     out.append(_s)
             if not out:
