@@ -617,8 +617,4 @@ class LatticeTab(QWidget):
             self._chord_combo.setEnabled(True)
             self._btn_chord_relations.setEnabled(True)
             self._btn_save.setEnabled(True)
-            cur = self._collections_edit.toPlainText().strip()
-            if cur:
-                self._collections_edit.setText(cur + "\n" + "\n".join(out))
-            else:
-                self._collections_edit.setText("\n".join(out))
+            self._collections_edit.setText("\n".join(out))

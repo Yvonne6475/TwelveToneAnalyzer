@@ -282,7 +282,7 @@ TRANSLATIONS = {
     "tt.btn_trichords": {"zh": "三音组 (4组)", "en": "Trichords (4 groups)"},
     "tt.btn_tetrachords": {"zh": "四音组 (3组)", "en": "Tetrachords (3 groups)"},
     "tt.btn_hexachords": {"zh": "六音组 (2组)", "en": "Hexachords (2 groups)"},
-    "tt.btn_show_row": {"zh": "显示乐谱", "en": "Show Score"},
+    "tt.btn_show_row": {"zh": "MuseScore中显示", "en": "Show in MuseScore"},
     "tt.btn_save_row_png": {"zh": "导出 PNG", "en": "Export PNG"},
     "tt.save_row_png": {"zh": "保存 PNG", "en": "Save PNG"},
     "tt.row_png_saved": {"zh": "PNG 已保存至:\n{path}", "en": "PNG saved to:\n{path}"},

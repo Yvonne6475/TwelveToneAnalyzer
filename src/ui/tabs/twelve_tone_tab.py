@@ -278,7 +278,7 @@ class MergeSearchDialog(QDialog):
             if not meas_range:
                 continue
             for _i in range(1, len(meas_range)):
-                if meas_range[_i].getOffsetBySite(part) - meas_range[_i-1].getOffsetBySite(part) > 50:
+                if meas_range[_i].getOffsetBySite(part) - meas_range[_i-1].getOffsetBySite(part) > 500:
                     meas_range = meas_range[:_i]
                     break
             for m in meas_range:
@@ -524,16 +524,45 @@ class CustomMergeDialog(QDialog):
         # Per-part / per-bar breakdown
         for pn in data:
             output.append(f"--- {pn} ---")
+            part_all = []
             for bn in data[pn]:
                 pcs = data[pn][bn]
                 uniq = list(dict.fromkeys(pcs))
                 fc = chord.Chord(uniq).forteClass if len(uniq) > 1 else ""
-                output.append(f"  Bar {bn}: {' '.join(map(str, uniq))}  Forte: {fc}" if fc else f"  Bar {bn}: {' '.join(map(str, uniq))}")
+                orig = list(dict.fromkeys(pcs))
+                output.append(f"  Bar {bn}: {' '.join(map(str, orig))}  Forte: {fc}" if fc else f"  Bar {bn}: {' '.join(map(str, orig))}")
+                part_all.extend(pcs)
+            # Part Merge: aggregate all bars for this part
+            part_merged = list(dict.fromkeys(part_all))
+            part_bars_seen = []
+            part_seq = []
+            seen_set = set()
+            for bn in data[pn]:
+                for pc in data[pn][bn]:
+                    if pc not in seen_set:
+                        part_seq.append(pc)
+                        seen_set.add(pc)
+                part_bars_seen.append(bn)
+            bar_range = f"Bars {min(part_bars_seen)}-{max(part_bars_seen)}" if part_bars_seen else ""
+            if len(part_merged) > 1:
+                fc_part = chord.Chord(sorted(part_merged)).forteClass
+                output.append(f"  >> Part Merge {bar_range}: {' '.join(map(str, part_seq))}  Forte: {fc_part}")
 
         # Merged result
         merged = list(dict.fromkeys(all_pcs))
         output.append(f"\n=== Merged Result ({len(merged)} unique) ===")
-        output.append(f"PCs: {' '.join(map(str, merged))}")
+        output.append(f"PCs (first occurrence): {' '.join(map(str, merged))}")
+        # Show constituent parts per part
+        for pn in data:
+            part_pcs = []
+            seen2 = set()
+            for bn in data[pn]:
+                for pc in data[pn][bn]:
+                    if pc not in seen2:
+                        part_pcs.append(pc)
+                        seen2.add(pc)
+            if part_pcs:
+                output.append(f"  Constituent [{pn}]: {' '.join(map(str, part_pcs))}")
         if len(merged) > 1:
             c = chord.Chord(sorted(merged))
             output.append(f"Sorted: {' '.join(map(str, sorted(merged)))}")
@@ -633,8 +662,11 @@ class TwelveToneTab(QWidget):
         self._manual_input = QLineEdit()
         self._manual_input.setPlaceholderText("6 8 11 1 4 9 7 10 0 3 5 2")
         manual_row.addWidget(self._manual_input)
+        self._btn_show_row = QPushButton(tr("tt.btn_show_row"))
+        self._btn_show_row.pressed.connect(lambda: self._on_show_row())
         self._btn_confirm = QPushButton(tr("tt.btn_confirm"))
         self._btn_confirm.clicked.connect(self._on_confirm_manual)
+        manual_row.addWidget(self._btn_show_row)
         manual_row.addWidget(self._btn_confirm)
         extract_layout.addLayout(manual_row)
 
@@ -750,7 +782,7 @@ class TwelveToneTab(QWidget):
         show_row = QHBoxLayout()
         self._btn_show_row = QPushButton(tr("tt.btn_show_row"))
         self._btn_show_row.setEnabled(False)
-        self._btn_show_row.clicked.connect(self._on_show_row)
+        self._btn_show_row.pressed.connect(lambda: self._on_show_row())
         show_row.addWidget(self._btn_show_row)
 
         self._btn_save_row_png = QPushButton(tr("tt.btn_save_row_png"))
@@ -895,8 +927,44 @@ class TwelveToneTab(QWidget):
                 return
             self._row = nums
             self._update_analysis()
+            self._btn_show_row.setEnabled(True)
+            print("DEBUG: btn enabled", flush=True)
         except ValueError:
             QMessageBox.warning(self, tr("tt.input_error"), tr("tt.input_format_err"))
+
+    def _on_show_row(self):
+        if not self._row or len(self._row) != 12:
+            return
+        try:
+            import subprocess, os
+            from pathlib import Path
+            from src.utils.config import get_musescore_path, get_temp_dir
+            from music21 import stream, metadata, note
+            s = stream.Score()
+            p = stream.Part()
+            p.insert(0, metadata.Metadata())
+            p.metadata.title = "12-Tone Row"
+            m = stream.Measure()
+            m.timeSignature = None
+            m.leftBarline = None
+            m.rightBarline = None
+            for pc in self._row:
+                n = note.Note()
+                n.pitch.midi = pc + 60
+                n.quarterLength = 4
+                m.append(n)
+            p.append(m)
+            s.append(p)
+            row_name = "_".join(str(p) for p in self._row) + "_twelve-tone_row"
+            tmp = os.path.join(get_temp_dir(), row_name + ".musicxml")
+            s.write('musicxml', tmp)
+            ms = get_musescore_path()
+            if ms and os.path.isfile(ms):
+                subprocess.Popen([ms, tmp])
+            else:
+                subprocess.Popen(['open', tmp])
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
 
     def _update_analysis(self):
         if not self._row:
@@ -1041,14 +1109,6 @@ class TwelveToneTab(QWidget):
         QMessageBox.information(self, tr("tt.matrix_group"),
                                 tr("tt.matrix_exported", path=path))
 
-    def _on_show_row(self):
-        if not self._last_groups:
-            return
-        try:
-            s = make_group_stream(self._last_groups)
-            show_score(s)
-        except Exception as e:
-            QMessageBox.critical(self, tr("overview.plot_error"), str(e))
 
     def _on_save_row_png(self):
         if not self._last_groups:

@@ -473,7 +473,11 @@ class SetRelationsTab(QWidget):
         while self._results_layout.count():
             item = self._results_layout.takeAt(0)
             if item.widget():
-                item.widget().deleteLater()
+                w = item.widget()
+                w.setParent(None)
+                w.deleteLater()
+        # Also clear any spacers
+        self._results_layout.update()
 
     def _add_section(self, title: str, items: list[str]):
         group = QGroupBox(title)
@@ -503,6 +507,10 @@ class SetRelationsTab(QWidget):
         if not mw or not hasattr(mw, '_score') or not mw._score:
             QMessageBox.information(self, tr("forte.title"), tr("forte.no_chord_msg"))
             return
+        self._universe_edit.clear()
+        self._clear_results()
+        self._target_combo.clear()
+        self._universe = []
         dlg = MergeSelectorDialog(mw._score, self)
         if dlg.exec_() != QDialog.Accepted:
             return
@@ -582,13 +590,9 @@ class SetRelationsTab(QWidget):
             if not out_lines:
                 out_lines = list(sel)
             cur = self._universe_edit.toPlainText().strip()
-            if cur:
-                self._universe_edit.setText(cur + "\n" + "\n".join(out_lines))
-            else:
-                self._universe_edit.setText("\n".join(out_lines))
+            self._universe_edit.setText("\n".join(out_lines))
             self._target_combo.clear()
             self._universe = self._parse_universe()
-            # Populate combo using exact out_lines content
             if self._universe:
                 self._target_combo.blockSignals(True)
                 pending_comments = ""

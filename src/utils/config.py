@@ -193,14 +193,14 @@ def show_score(stream, fmt='musicxml', parent=None):
         os.remove(tmp_path)
         raise
 
-    if ms_path and os.path.isfile(ms_path):
-        # Open directly with configured MuseScore
+    # Open file with default application (MuseScore)
+    try:
+        subprocess.Popen(['open', tmp_path])
+    except Exception:
         try:
-            subprocess.Popen([ms_path, tmp_path])
-        except Exception:
             QDesktopServices.openUrl(QUrl.fromLocalFile(tmp_path))
-    else:
-        QDesktopServices.openUrl(QUrl.fromLocalFile(tmp_path))
+        except Exception:
+            pass
 
 
 def get_image_viewer_path() -> str:

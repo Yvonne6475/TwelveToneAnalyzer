@@ -329,6 +329,11 @@ class ForteNameTab(QWidget):
             QMessageBox.information(self, tr("forte.title"),
                                     tr("forte.no_chord_msg"))
             return
+        self._input_edit.clear()
+        self._results = []
+        self._table.setRowCount(0)
+        self._btn_copy.setEnabled(False)
+        self._btn_export.setEnabled(False)
         dlg = MergeSelectorDialog(mw._score, self)
         if dlg.exec_() != QDialog.Accepted:
             return
