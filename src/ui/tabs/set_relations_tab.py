@@ -136,7 +136,12 @@ class SetRelationsTab(QWidget):
         target_row.addWidget(QLabel(tr("sr.target_label")))
         self._target_combo = QComboBox()
         self._target_combo.setMinimumWidth(260)
+        self._target_combo.setMaxVisibleItems(30)
         self._target_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        _tv = self._target_combo.view()
+        _tv.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        _tv.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        _tv.setMinimumWidth(800)
         self._target_combo.currentIndexChanged.connect(self._on_target_changed)
         target_row.addWidget(self._target_combo, 1)
 
@@ -441,13 +446,19 @@ class SetRelationsTab(QWidget):
         pass
 
     def _adjust_combo_dropdown_width(self):
+        from PyQt5.QtWidgets import QApplication
+        screen_w = QApplication.primaryScreen().availableSize().width() if QApplication.primaryScreen() else 1200
         fm = self._target_combo.fontMetrics()
         max_w = 0
         for i in range(self._target_combo.count()):
             max_w = max(max_w, fm.boundingRect(self._target_combo.itemText(i)).width())
         view = self._target_combo.view()
         if view:
-            view.setMinimumWidth(min(max_w + 40, 800))
+            view.setMinimumWidth(min(max_w + 60, screen_w - 100))
+            view.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        # Set tooltip for full text on each item
+        for i in range(self._target_combo.count()):
+            self._target_combo.setItemData(i, self._target_combo.itemText(i), Qt.ToolTipRole)
 
     def _sync_combo_from_universe(self):
         self._target_combo.blockSignals(True)

@@ -278,7 +278,7 @@ class MergeSearchDialog(QDialog):
             if not meas_range:
                 continue
             for _i in range(1, len(meas_range)):
-                if meas_range[_i].getOffsetBySite(part) - meas_range[_i-1].getOffsetBySite(part) > 500:
+                if meas_range[_i].getOffsetBySite(part) - meas_range[_i-1].getOffsetBySite(part) > 10000:
                     meas_range = meas_range[:_i]
                     break
             for m in meas_range:
@@ -499,10 +499,6 @@ class CustomMergeDialog(QDialog):
             meas_range = [m for m in meas_all if m.number in bars]
             if not meas_range:
                 continue
-            for _i in range(1, len(meas_range)):
-                if meas_range[_i].getOffsetBySite(part) - meas_range[_i-1].getOffsetBySite(part) > 50:
-                    meas_range = meas_range[:_i]
-                    break
             for m in meas_range:
                 bn = m.number
                 for el in m.recurse():

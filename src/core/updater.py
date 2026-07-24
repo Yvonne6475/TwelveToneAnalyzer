@@ -19,7 +19,7 @@ from typing import Optional
 # ── Single source of truth for the current version ─────────────────
 # When bumping the version (update.ps1 / update_mac.sh), this constant
 # MUST be updated together with installer.nsi, i18n.py, .spec files.
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 
 GITHUB_REPO = "Yvonne6475/TwelveToneAnalyzer"
 RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"

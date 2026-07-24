@@ -69,11 +69,6 @@ def merge_from_score(score, selected_parts: set, start: int, end: int):
         meas_range = [m for m in meas_all if start <= m.number <= end]
         if not meas_range:
             continue
-        # Detect section breaks: measure number didn't increase (reset)
-        for _i in range(1, len(meas_range)):
-            if meas_range[_i].number <= meas_range[_i-1].number:
-                meas_range = meas_range[:_i]
-                break
         for m in meas_range:
             bn = m.number
             for el in m.recurse():
