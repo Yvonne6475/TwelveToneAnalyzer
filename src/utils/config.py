@@ -193,9 +193,12 @@ def show_score(stream, fmt='musicxml', parent=None):
         os.remove(tmp_path)
         raise
 
-    # Open file with default application (MuseScore)
+    # Open with configured MuseScore first, fallback to default handler
     try:
-        subprocess.Popen(['open', tmp_path])
+        if ms_path and os.path.isfile(ms_path):
+            subprocess.Popen([ms_path, tmp_path])
+        else:
+            subprocess.Popen(['open', tmp_path])
     except Exception:
         try:
             QDesktopServices.openUrl(QUrl.fromLocalFile(tmp_path))
