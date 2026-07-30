@@ -214,7 +214,17 @@ class ChordTab(QWidget):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             try:
+                # Clear other tabs before re-extracting
+                mw = self._main_window
+                if mw:
+                    ft = getattr(mw, '_forte_name_tab', None)
+                    if ft: ft.on_score_loaded()
+                    sr = getattr(mw, '_set_relations_tab', None)
+                    if sr: sr.on_score_loaded()
+                    lt = getattr(mw, '_lattice_tab', None)
+                    if lt: lt.on_score_loaded()
                 self._results = extract_chords(self._score, selected, (start, end), name_map=name_map)
+                self._build_merged_items()
                 self._populate_table()
                 self._btn_export_md.setEnabled(True)
                 self._btn_export_csv.setEnabled(True)
@@ -228,44 +238,171 @@ class ChordTab(QWidget):
             while QApplication.overrideCursor() is not None:
                 QApplication.restoreOverrideCursor()
 
+    def _build_merged_items(self):
+        """Build merged items (part, bar, offset) from results for other tabs."""
+        from collections import OrderedDict
+        bar_groups = OrderedDict()
+        for r in self._results:
+            if len(r.pc_set) <= 1: continue
+            bar_groups.setdefault(r.bar, []).append(r)
+        part_order = []
+        seen_p = set()
+        for r in self._results:
+            if r.part_name not in seen_p:
+                seen_p.add(r.part_name)
+                part_order.append(r.part_name)
+        self._merged_for_chord = []
+        for bar in sorted(bar_groups):
+            bar_rs = bar_groups[bar]
+            # Per-part merged
+            part_pcs = OrderedDict()
+            for r in bar_rs:
+                part_pcs.setdefault(r.part_name, []).extend(r.pc_set)
+            for pn in part_order:
+                if pn not in part_pcs: continue
+                pcs = list(dict.fromkeys(part_pcs[pn]))
+                if len(pcs) > 1:
+                    c = chord.Chord(sorted(pcs))
+                    self._merged_for_chord.append(("part", {
+                        "bar": bar, "part": pn, "pcs": sorted(pcs), "forte": c.forteClass,
+                        "order": list(c.normalOrder), "prime": c.primeFormString,
+                    }))
+            # Bar merged (first-occurrence order)
+            merged_pcs = []
+            seen_pcs = set()
+            for r in bar_rs:
+                for pc in r.pc_set:
+                    if pc not in seen_pcs:
+                        seen_pcs.add(pc)
+                        merged_pcs.append(pc)
+            if len(merged_pcs) > 1:
+                c = chord.Chord(sorted(merged_pcs))
+                self._merged_for_chord.append(("bar", {
+                    "bar": bar, "part": "all", "pcs": merged_pcs, "forte": c.forteClass,
+                    "order": list(c.normalOrder), "prime": c.primeFormString,
+                }))
+            # Offset merged
+            off_groups = OrderedDict()
+            for r in bar_rs:
+                off_groups.setdefault(r.offset, []).append(r)
+            for off in sorted(off_groups):
+                rs = off_groups[off]
+                if len(rs) <= 1: continue
+                merged_o = []
+                seen_o = set()
+                for r in rs:
+                    for pc in r.pc_set:
+                        if pc not in seen_o:
+                            seen_o.add(pc)
+                            merged_o.append(pc)
+                if len(merged_o) > 1:
+                    c = chord.Chord(sorted(merged_o))
+                    self._merged_for_chord.append(("offset", {
+                        "bar": bar, "offset": off, "part": " + ".join(r.part_name for r in rs),
+                        "pcs": merged_o, "forte": c.forteClass,
+                        "order": list(c.normalOrder), "prime": c.primeFormString,
+                    }))
+
     def _populate_table(self):
-        # Group results by bar
         bar_groups = {}
         for r in self._results:
             bar_groups.setdefault(r.bar, []).append(r)
-        # Build row list: individual + merged per bar
-        rows = []  # list of dicts or ChordResult
+        part_order = []
+        seen = set()
+        for r in self._results:
+            if r.part_name not in seen:
+                seen.add(r.part_name)
+                part_order.append(r.part_name)
+        rows = []
+        self._chord_display_rows = []
         for bar in sorted(bar_groups):
             bar_rs = bar_groups[bar]
             for r in bar_rs:
                 rows.append(("indiv", r))
-            # Compute merged
-            all_pcs = set()
-            part_names = set()
-            for r in bar_rs:
-                all_pcs.update(r.pc_set)
-                part_names.add(r.part_name)
+                self._chord_display_rows.append({
+                    "type": "indiv", "pcs": r.pc_set, "bar": r.bar,
+                    "part": r.part_name, "forte": r.forte_class, "offset": r.offset
+                })
+            # Per-part merged
             part_pcs = {}
             for r in bar_rs:
                 part_pcs.setdefault(r.part_name, []).extend(r.pc_set)
-            parts_list = []
-            for pn in part_pcs:
-                uniq = sorted(set(part_pcs[pn]))
-                parts_list.append(f"{pn} [{', '.join(map(str, uniq))}]")
-            merged_pcs = sorted(all_pcs)
+            for pn in part_order:
+                if pn not in part_pcs: continue
+                pcs = part_pcs[pn]
+                uniq = list(dict.fromkeys(pcs))
+                if len(uniq) > 1:
+                    c = chord.Chord(sorted(uniq))
+                    rows.append(("part_merged", {
+                        "bar": bar, "offset": f"{pn} merged", "part_name": pn,
+                        "notes": str(uniq), "pc_set": str(uniq),
+                        "normal_order": str(list(c.normalOrder)),
+                        "prime_form": c.primeFormString,
+                        "forte_class": c.forteClass, "pitch_range": "",
+                    }))
+                    self._chord_display_rows.append({
+                        "type": "part_merged", "pcs": uniq, "bar": bar,
+                        "part": pn, "forte": c.forteClass
+                    })
+            # Bar merged (first-occurrence order)
+            merged_pcs_ordered = []
+            seen_pcs = set()
+            for r in bar_rs:
+                for pc in r.pc_set:
+                    if pc not in seen_pcs:
+                        seen_pcs.add(pc)
+                        merged_pcs_ordered.append(pc)
+            merged_pcs = merged_pcs_ordered
             if len(merged_pcs) > 1:
                 c = chord.Chord(merged_pcs)
                 rows.append(("merged", {
-                    "bar": bar,
-                    "offset": f"merged (bar {bar})",
-                    "part_name": "\n".join(sorted(part_names)),
-                    "notes": f"merged ({len(merged_pcs)}): {' + '.join(parts_list)}",
-                    "pc_set": str(list(c.normalOrder)),
+                    "bar": bar, "offset": f"merged (bar {bar})",
+                    "part_name": "\\n".join(sorted(set(r.part_name for r in bar_rs))),
+                    "notes": f"merged: {' '.join(map(str, merged_pcs))}",
+                    "pc_set": str(merged_pcs),
                     "normal_order": str(list(c.normalOrder)),
                     "prime_form": c.primeFormString,
-                    "forte_class": c.forteClass,
-                    "pitch_range": "",
+                    "forte_class": c.forteClass, "pitch_range": "",
                 }))
+                self._chord_display_rows.append({
+                    "type": "bar_merged", "pcs": merged_pcs, "bar": bar,
+                    "part": "\\n".join(sorted(set(r.part_name for r in bar_rs))),
+                    "forte": c.forteClass
+                })
+            # Offset merged (once)
+            off_groups = {}
+            for r in bar_rs:
+                off_groups.setdefault(r.offset, []).append(r)
+            for off in sorted(off_groups):
+                rs = off_groups[off]
+                if len(rs) <= 1: continue
+                parts_list_o = []
+                for r in rs:
+                    uniq = list(dict.fromkeys(r.pc_set))
+                    parts_list_o.append(f"{r.part_name}[{' '.join(map(str, uniq))}]")
+                merged_o = []
+                seen_o = set()
+                for r in rs:
+                    for pc in r.pc_set:
+                        if pc not in seen_o:
+                            seen_o.add(pc)
+                            merged_o.append(pc)
+                if len(merged_o) > 1:
+                    c = chord.Chord(merged_o)
+                    rows.append(("offset_merged", {
+                        "bar": bar, "offset": f"offset {off}",
+                        "part_name": " + ".join(parts_list_o),
+                        "notes": str(merged_o),
+                        "pc_set": str(merged_o),
+                        "normal_order": str(list(c.normalOrder)),
+                        "prime_form": c.primeFormString,
+                        "forte_class": c.forteClass, "pitch_range": "",
+                    }))
+                    self._chord_display_rows.append({
+                        "type": "offset_merged", "pcs": merged_o, "bar": bar,
+                        "part": " + ".join(parts_list_o),
+                        "forte": c.forteClass, "offset": f"offset {off}"
+                    })
         self._table.setRowCount(len(rows))
         self._table.setWordWrap(True)
         for row_idx, (kind, data) in enumerate(rows):
@@ -281,9 +418,10 @@ class ChordTab(QWidget):
                         d["forte_class"], d["pitch_range"]]
             for col, val in enumerate(vals):
                 item = QTableWidgetItem(val)
-                if kind == "merged":
-                    item.setBackground(QColor("#f0f0e0"))
-                    item.setToolTip("Bar merged set (union of all chords in this bar)")
+                item.setToolTip(val)
+                if kind in ("merged", "offset_merged", "part_merged"):
+                    color = {"merged": "#f0f0e0", "part_merged": "#e0f0e0", "offset_merged": "#e8f4ff"}
+                    item.setBackground(QColor(color[kind]))
                 self._table.setItem(row_idx, col, item)
         self._table.resizeRowsToContents()
 

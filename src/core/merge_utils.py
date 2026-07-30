@@ -5,7 +5,7 @@ from src.core.score_analyzer import diagnose_all_parts
 from src.utils.i18n import tr
 
 from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
+    QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QLineEdit,
     QCheckBox, QSpinBox, QPushButton, QMessageBox,
     QListWidget, QDialogButtonBox,
 )
@@ -32,6 +32,11 @@ def select_merge_items(parent, all_items, bar_items):
             _lab = f"[Bar Merge] Bar {_it['bar']}: [{_seq_pc}] Forte: {_it['forte']}"
             if _it.get('parts'):
                 _lab += f" ({_it['parts']})"
+        elif 'offset' in _it:
+            _pc_str = " ".join(map(str, _it.get('pcs', _it['pcs'])))
+            _lab = f"[Offset Merge] Bar {_it['bar']} offset {_it['offset']}: [{_pc_str}] Forte: {_it['forte']}"
+            if _it.get('offset_pcs'):
+                _lab += f" ({_it['offset_pcs']})"
         else:
             _chord_pc = " ".join(map(str, _it.get('orig_pcs', _it['pcs'])))
             _lab = f"[Chord] Bar {_it['bar']}: [{_chord_pc}] Forte: {_it['forte']}"
@@ -55,10 +60,11 @@ def select_merge_items(parent, all_items, bar_items):
     return _sel
 
 
-def merge_from_score(score, selected_parts: set, start: int, end: int):
-    """Extract notes with gap-based filtering. Returns (part_bar_data, all_pcs)."""
+def merge_from_score(score, selected_parts: set, start: int, end: int, with_offsets=False):
+    """Extract notes. Returns (part_bar_data, all_pcs) or with with_offsets: (data, all_pcs, offset_data)."""
     from collections import OrderedDict
     data = OrderedDict()
+    offset_data = {}
     all_pcs = []
     for pi, part in enumerate(score.parts):
         if pi not in selected_parts:
@@ -75,10 +81,18 @@ def merge_from_score(score, selected_parts: set, start: int, end: int):
                 if isinstance(el, m21note.Note):
                     data[pn].setdefault(bn, []).append(el.pitch.pitchClass)
                     all_pcs.append(el.pitch.pitchClass)
+                    if with_offsets:
+                        ok = (bn, round(el.offset, 3))
+                        offset_data.setdefault(ok, {}).setdefault(pn, []).append(el.pitch.pitchClass)
                 elif isinstance(el, chord.Chord):
                     for p in el.pitches:
                         data[pn].setdefault(bn, []).append(p.pitchClass)
                         all_pcs.append(p.pitchClass)
+                        if with_offsets:
+                            ok = (bn, round(el.offset, 3))
+                            offset_data.setdefault(ok, {}).setdefault(pn, []).append(p.pitchClass)
+    if with_offsets:
+        return data, all_pcs, offset_data
     return data, all_pcs
 
 
@@ -105,17 +119,11 @@ class MergeSelectorDialog(QDialog):
             part_layout.addWidget(cb)
         layout.addWidget(part_group)
         bar_row = QHBoxLayout()
-        bar_row.addWidget(QLabel(tr("chord.start_measure")))
-        self._spin_start = QSpinBox()
-        self._spin_start.setRange(1, 999)
-        self._spin_start.setValue(1)
-        bar_row.addWidget(self._spin_start)
-        bar_row.addWidget(QLabel(tr("chord.end_measure")))
-        self._spin_end = QSpinBox()
-        self._spin_end.setRange(1, 999)
-        self._spin_end.setValue(30)
-        bar_row.addWidget(self._spin_end)
-        bar_row.addStretch()
+        bar_row.addWidget(QLabel(tr("tt.custom_bars_label")))
+        self._bars_input = QLineEdit()
+        self._bars_input.setPlaceholderText("1, 3, 5-10, 12, 15-20")
+        self._bars_input.setText("")
+        bar_row.addWidget(self._bars_input)
         layout.addLayout(bar_row)
         self._btn_merge = QPushButton(tr("tt.btn_merge_search"))
         self._btn_merge.clicked.connect(self._do_merge)
@@ -124,6 +132,21 @@ class MergeSelectorDialog(QDialog):
         close_btn = QPushButton(tr("forte.btn_close"))
         close_btn.clicked.connect(self.close)
         layout.addWidget(close_btn)
+
+    def _parse_bars(self, text: str) -> set:
+        bars = set()
+        for part in text.split(","):
+            part = part.strip()
+            if not part: continue
+            if "-" in part:
+                try:
+                    a, b = part.split("-", 1)
+                    bars.update(range(int(a.strip()), int(b.strip()) + 1))
+                except ValueError: pass
+            else:
+                try: bars.add(int(part))
+                except ValueError: pass
+        return bars
 
     def _do_merge(self):
         if not self._score:
@@ -138,16 +161,24 @@ class MergeSelectorDialog(QDialog):
         if not selected:
             QMessageBox.warning(self, "", tr("tt.merge_no_part"))
             return
-        s = self._spin_start.value()
-        e = self._spin_end.value()
-        if s > e:
+        bars = self._parse_bars(self._bars_input.text().strip())
+        if not bars:
+            QMessageBox.warning(self, "", "Invalid bar list")
             return
-        data, all_pcs = merge_from_score(self._score, selected, s, e)
+        s, e = min(bars), max(bars)
+        data, all_pcs, offset_data = merge_from_score(self._score, selected, s, e, with_offsets=True)
         if not all_pcs:
             QMessageBox.warning(self, "", tr("tt.merge_no_notes"))
             return
-        self._result = (data, all_pcs)
+        # Filter to only selected bars
+        for pn in list(data.keys()):
+            for bn in list(data[pn].keys()):
+                if bn not in bars:
+                    del data[pn][bn]
+            if not data[pn]:
+                del data[pn]
+        self._result = (data, all_pcs, offset_data)
         self.accept()
 
     def get_result(self):
-        return self._result
+        return self._result  # (data, all_pcs, offset_data = {})

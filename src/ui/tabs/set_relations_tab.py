@@ -403,37 +403,118 @@ class SetRelationsTab(QWidget):
                 entry = f"Bar {r.bar} ({r.part_name})"
                 if entry not in existing:
                     self._bar_info[key] = existing + f"; {entry}"
-        all_lines = bar_lines + indiv_lines
-
-        self._universe_edit.setText("\n".join(all_lines))
-
-        # Populate combo: bar-merged first (with "Bar" prefix), then individual (with Forte name)
-        self._target_combo.blockSignals(True)
-        self._target_combo.clear()
-        for bar in sorted(bar_sets):
-            pc = sorted(bar_sets[bar])
-            if pc:
-                key = tuple(sorted(pc))
-                cons = self._merged_constituents.get(key, set())
-                extra = ""
-                if cons:
-                    parts = []
-                    for pcs, part in sorted(cons, key=lambda x: (tuple(x[0]), x[1])):
-                        parts.append(f"[{' '.join(map(str, pcs))}]({part})")
-                    extra = "  ← from " + " + ".join(parts)
-                label = tr("sr.combo_bar", bar=bar, pc=_pc_str(pc), forte=_forte(pc)) + extra
-                self._target_combo.addItem(label, _pc_str(pc))
-        seen_combo = set()
+        # 3) Add merged items from chord tab
+        chord_merged = []
+        if hasattr(chord_tab, '_merged_for_chord'):
+            for mtype, mdata in chord_tab._merged_for_chord:
+                if mtype == "part":
+                    chord_merged.append(("part_merged", mdata["pcs"], mdata))
+                elif mtype == "bar":
+                    chord_merged.append(("bar_merged", mdata["pcs"], mdata))
+                elif mtype == "offset":
+                    chord_merged.append(("offset_merged", mdata["pcs"], mdata))
+        # 4) Offset merge items
+        offset_groups = {}
         for r in results:
             if len(r.pc_set) <= 1:
                 continue
-            key = tuple(sorted(r.pc_set))
-            if key in seen_combo:
+            offset_groups.setdefault((r.bar, r.offset), []).append(r)
+        offset_lines = []
+        for (bar, off), rs in sorted(offset_groups.items()):
+            all_pcs_o = set()
+            parts_list_o = []
+            for r in rs:
+                all_pcs_o.update(r.pc_set)
+                uniq = list(dict.fromkeys(r.pc_set))
+                parts_list_o.append(f"{r.part_name}[{' '.join(map(str, uniq))}]")
+            merged_pcs = sorted(all_pcs_o)
+            if len(merged_pcs) > 1:
+                offset_lines.append(_pc_str(merged_pcs))
+                key = tuple(merged_pcs)
+                self._bar_info[key] = f"Bar {bar} offset {off}"
+                self._merged_sets.add(key)
+                if key not in self._merged_constituents:
+                    self._merged_constituents[key] = set()
+                for r in rs:
+                    self._merged_constituents[key].add((tuple(r.pc_set), r.part_name))
+        # Add chord merged lines
+        merged_lines = []
+        for mtype, pcs, mdata in chord_merged:
+            if mtype == "part_merged":
+                merged_lines.append(f"# [{mdata['part']} merged] Bar {mdata['bar']}: {' '.join(map(str, pcs))} Forte: {mdata['forte']}")
+                merged_lines.append(" ".join(map(str, pcs)))
+                key = tuple(pcs)
+                self._bar_info[key] = f"Bar {mdata['bar']} ({mdata['part']})"
+            elif mtype == "bar_merged":
+                merged_lines.append(f"# [Bar merged] Bar {mdata['bar']}: {' '.join(map(str, pcs))} Forte: {mdata['forte']}")
+                merged_lines.append(" ".join(map(str, pcs)))
+            elif mtype == "offset_merged":
+                merged_lines.append(f"# [Offset merged] Bar {mdata['bar']} offset {mdata['offset']}: {' '.join(map(str, pcs))} Forte: {mdata['forte']} ({mdata['part']})")
+                merged_lines.append(" ".join(map(str, pcs)))
+
+        # 5) Add items from _chord_display_rows (ensures consistency with chord table)
+        display_rows = getattr(chord_tab, '_chord_display_rows', [])
+        display_lines = []
+        for row in display_rows:
+            t = row.get("type", "")
+            pcs = row.get("pcs", [])
+            if not pcs:
                 continue
-            seen_combo.add(key)
-            bar_str = self._bar_info.get(key, f"Bar {r.bar}")
-            label = tr("sr.combo_item", pc=_pc_str(r.pc_set), forte=_forte(r.pc_set)) + f" ({bar_str})"
-            self._target_combo.addItem(label, _pc_str(r.pc_set))
+            bar = row.get("bar", "")
+            part = row.get("part", "")
+            forte_label = row.get("forte", _forte(pcs))
+            if t == "indiv":
+                display_lines.append(_pc_str(pcs))
+                key = tuple(sorted(pcs))
+                if key not in self._bar_info:
+                    self._bar_info[key] = f"Bar {bar} ({part})"
+            elif t == "part_merged":
+                display_lines.append(f"# [{part} merged] Bar {bar}: {' '.join(map(str, pcs))} Forte: {forte_label}")
+                display_lines.append(" ".join(map(str, pcs)))
+                key = tuple(pcs)
+                self._bar_info[key] = f"Bar {bar} ({part})"
+            elif t == "bar_merged":
+                display_lines.append(f"# [Bar merged] Bar {bar}: {' '.join(map(str, pcs))} Forte: {forte_label}")
+                display_lines.append(" ".join(map(str, pcs)))
+            elif t == "offset_merged":
+                off = row.get("offset", "")
+                display_lines.append(f"# [Offset merged] Bar {bar} {off}: {' '.join(map(str, pcs))} Forte: {forte_label} ({part})")
+                display_lines.append(" ".join(map(str, pcs)))
+
+        all_lines = bar_lines + indiv_lines + offset_lines + merged_lines + display_lines
+
+        self._universe_edit.setText("\n".join(all_lines))
+
+        # Populate combo using _chord_display_rows for consistent per-bar order
+        self._target_combo.blockSignals(True)
+        self._target_combo.clear()
+        seen_in_combo = set()
+        for row in display_rows:
+            t = row.get("type", "")
+            pcs = row.get("pcs", [])
+            if not pcs:
+                continue
+            pc_str = _pc_str(pcs)
+            if pc_str in seen_in_combo:
+                continue
+            seen_in_combo.add(pc_str)
+            bar = row.get("bar", "")
+            part = row.get("part", "")
+            forte_label = row.get("forte", _forte(pcs))
+            if t == "indiv":
+                if len(pcs) <= 1:
+                    continue
+                label = tr("sr.combo_item", pc=pc_str, forte=forte_label) + f" (Bar {bar} ({part}))"
+            elif t == "part_merged":
+                label = f"[Part merged] Bar {bar} ({part}): {pc_str}  Forte: {forte_label}"
+            elif t == "bar_merged":
+                label = f"[Bar merged] Bar {bar}: {pc_str}  Forte: {forte_label}"
+            elif t == "offset_merged":
+                off = row.get("offset", "")
+                label = f"[Offset merged] Bar {bar} {off}: {pc_str}  Forte: {forte_label} ({part})"
+            else:
+                label = f"Bar {bar}: {pc_str}  Forte: {forte_label}"
+            self._target_combo.addItem(label, pc_str)
         self._target_combo.blockSignals(False)
 
         if all_lines:
@@ -518,14 +599,14 @@ class SetRelationsTab(QWidget):
         if not mw or not hasattr(mw, '_score') or not mw._score:
             QMessageBox.information(self, tr("forte.title"), tr("forte.no_chord_msg"))
             return
+        dlg = MergeSelectorDialog(mw._score, self)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        data, all_pcs, offset_data = dlg.get_result()
         self._universe_edit.clear()
         self._clear_results()
         self._target_combo.clear()
         self._universe = []
-        dlg = MergeSelectorDialog(mw._score, self)
-        if dlg.exec_() != QDialog.Accepted:
-            return
-        data, all_pcs = dlg.get_result()
         bar_detail = OrderedDict()
         for pn in data:
             for bn in data[pn]:
@@ -545,6 +626,19 @@ class SetRelationsTab(QWidget):
                 part_items.append({"pcs": sp, "seq": seq_pcs, "part_name": pn,
                     "bar_start": min(bars_seen), "bar_end": max(bars_seen),
                     "forte": _chord.Chord(sp).forteClass})
+        offset_items = []
+        from music21 import chord as _chord
+        for (obn, ooff), parts in sorted(offset_data.items(), key=lambda x: (x[0][0], x[0][1])):
+            all_pcs_o = set()
+            parts_list_o = []
+            for pn, pcs in parts.items():
+                uniq = list(dict.fromkeys(pcs))
+                all_pcs_o.update(uniq)
+                parts_list_o.append(f"{pn}[{' '.join(map(str, uniq))}]")
+            sorted_pcs = sorted(all_pcs_o)
+            if len(sorted_pcs) > 1:
+                offset_items.append({"pcs": sorted_pcs, "offset_pcs": " + ".join(parts_list_o),
+                    "bar": obn, "offset": ooff, "forte": _chord.Chord(sorted_pcs).forteClass})
         bar_items, indiv_items = [], []
         for bn in sorted(bar_detail):
             all_pb = set()
@@ -555,47 +649,60 @@ class SetRelationsTab(QWidget):
             merged = sorted(all_pb)
             if len(merged) > 1:
                 bar_items.append({"pcs": merged, "bar": bn, "parts": ", ".join(f"{pn} [{', '.join(map(str, bar_detail[bn][pn]))}]" for pn in bar_detail[bn]), "forte": _chord.Chord(merged).forteClass})
-        sel = select_merge_items(self, part_items + bar_items + indiv_items, bar_items)
+        all_ordered = list(part_items)
+        for bn in sorted(bar_detail):
+            for _it in indiv_items:
+                if _it["bar"] == bn:
+                    all_ordered.append(_it)
+            for _it in bar_items:
+                if _it["bar"] == bn:
+                    all_ordered.append(_it)
+            for _it in offset_items:
+                if _it["bar"] == bn:
+                    all_ordered.append(_it)
+        sel = select_merge_items(self, all_ordered, bar_items)
         if sel:
             sel_set = set(sel); out_lines = []
-            import re as _re
-            def _parse_cons(ps):
-                res = []
-                for seg in ps.split('], '):
-                    seg = seg.strip()
-                    if ' [' not in seg: continue
-                    nm, ps2 = seg.split(' [', 1); ps2 = ps2.rstrip(']')
-                    res.append((tuple(map(int, ps2.split(', '))), nm))
-                return res
-            for _it in part_items:
-                _pk = " ".join(map(str, _it["pcs"])); _s = " ".join(map(str, _it.get('seq', _it['pcs'])))
-                if _pk in sel_set:
-                    out_lines.append(f"# [Part Merge] {_it['part_name']} (Bars {_it['bar_start']}-{_it['bar_end']}): [{_pk}] Forte: {_it['forte']}")
-                    out_lines.append(f"# Constituents: [{_s}]({_it['part_name']})")
+            for _item in all_ordered:
+                pc_key = " ".join(map(str, _item["pcs"]))
+                if pc_key not in sel_set:
+                    continue
+                if 'part_name' in _item and 'bar_start' in _item:
+                    _s = " ".join(map(str, _item.get('seq', _item['pcs'])))
+                    out_lines.append(f"# [Part Merge] {_item['part_name']} (Bars {_item['bar_start']}-{_item['bar_end']}): [{pc_key}] Forte: {_item['forte']}")
+                    out_lines.append(f"# Constituents: [{_s}]({_item['part_name']})")
                     out_lines.append(_s)
-                    key = tuple(_it["pcs"])
+                    key = tuple(_item["pcs"])
                     self._merged_sets.add(key)
-                    self._bar_info[key] = f"{_it['part_name']} (Bars {_it['bar_start']}-{_it['bar_end']})"
+                    self._bar_info[key] = f"{_item['part_name']} (Bars {_item['bar_start']}-{_item['bar_end']})"
                     if key not in self._merged_constituents: self._merged_constituents[key] = set()
-                    self._merged_constituents[key].add((tuple(_it.get('seq', _it['pcs'])), _it['part_name']))
-            for _it in bar_items:
-                _pk = " ".join(map(str, _it["pcs"])); _s = " ".join(map(str, _it.get('orig_seq', _it["pcs"])))
-                if _pk in sel_set:
-                    out_lines.append(f"# [Bar Merge] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('parts','')})")
+                    self._merged_constituents[key].add((tuple(_item.get('seq', _item['pcs'])), _item['part_name']))
+                elif 'offset' in _item:
+                    out_lines.append(f"# [Offset Merge] Bar {_item['bar']} offset {_item['offset']}: [{pc_key}] Forte: {_item['forte']} ({_item['offset_pcs']})")
+                    out_lines.append(pc_key)
+                elif 'parts' in _item:
+                    _s = " ".join(map(str, _item.get('orig_seq', _item["pcs"])))
+                    out_lines.append(f"# [Bar Merge] Bar {_item['bar']}: [{_s}] Forte: {_item['forte']} ({_item.get('parts','')})")
                     out_lines.append(_s)
-                    key = tuple(_it["pcs"])
+                    key = tuple(_item["pcs"])
                     self._merged_sets.add(key)
-                    self._bar_info[key] = f"Bar {_it['bar']}"
+                    self._bar_info[key] = f"Bar {_item['bar']}"
                     if key not in self._merged_constituents: self._merged_constituents[key] = set()
-                    for cons_pcs, cons_part in _parse_cons(_it.get('parts', '')):
-                        self._merged_constituents[key].add((cons_pcs, cons_part))
-            for _it in indiv_items:
-                _pk = " ".join(map(str, _it["pcs"])); _s = " ".join(map(str, _it.get('orig_pcs', _it["pcs"])))
-                if _pk in sel_set:
-                    out_lines.append(f"# [Chord] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('part','')})")
+                    # Parse constituents from parts string
+                    parts_str = _item.get('parts', '')
+                    import re as _re
+                    for seg in parts_str.split('], '):
+                        seg = seg.strip()
+                        if ' [' not in seg: continue
+                        nm, ps2 = seg.split(' [', 1); ps2 = ps2.rstrip(']')
+                        cons_pcs = tuple(map(int, ps2.split(', ')))
+                        self._merged_constituents[key].add((cons_pcs, nm))
+                else:
+                    _s = " ".join(map(str, _item.get('orig_pcs', _item["pcs"])))
+                    out_lines.append(f"# [Chord] Bar {_item['bar']}: [{_s}] Forte: {_item['forte']} ({_item.get('part','')})")
                     out_lines.append(_s)
-                    key = tuple(_it["pcs"])
-                    entry = f"Bar {_it['bar']} ({_it.get('part','')})"
+                    key = tuple(_item["pcs"])
+                    entry = f"Bar {_item['bar']} ({_item.get('part','')})"
                     if key not in self._bar_info: self._bar_info[key] = entry
                     elif entry not in self._bar_info[key]: self._bar_info[key] += f"; {entry}"
             if not out_lines:

@@ -269,6 +269,7 @@ class MergeSearchDialog(QDialog):
 
         # Gather all notes with part & bar info
         all_notes = []  # (offset, pc, part_name, bar, part_idx)
+        offset_data_ms = {}  # (bar, offset) -> {part_name: [pcs]}
         for pi, part in enumerate(self._score.parts):
             if pi not in selected_parts:
                 continue
@@ -288,8 +289,12 @@ class MergeSearchDialog(QDialog):
                     if isinstance(el, chord.Chord):
                         for p in el.pitches:
                             all_notes.append((global_off, p.pitchClass, pn, bn, pi))
+                            off_key = (bn, round(global_off, 3))
+                            offset_data_ms.setdefault(off_key, {}).setdefault(pn, []).append(p.pitchClass)
                     elif isinstance(el, m21note.Note):
                         all_notes.append((global_off, el.pitch.pitchClass, pn, bn, pi))
+                        off_key = (bn, round(global_off, 3))
+                        offset_data_ms.setdefault(off_key, {}).setdefault(pn, []).append(el.pitch.pitchClass)
         all_notes.sort(key=lambda x: (x[3], x[0]))  # sort by bar, then offset
 
         if not all_notes:
@@ -319,6 +324,20 @@ class MergeSearchDialog(QDialog):
             bar_merged = list(dict.fromkeys(bar_all_pcs))
             bar_fc = chord.Chord(bar_merged).forteClass if len(bar_merged) > 1 else ""
             output.append(f"  Merged (bar {bar}): {' '.join(map(str, bar_merged))}  Forte: {bar_fc}" if bar_fc else f"  Merged (bar {bar}): {' '.join(map(str, bar_merged))}")
+            # Offset merge for this bar
+            for (obn, ooff), parts in sorted(offset_data_ms.items(), key=lambda x: (x[0][0], x[0][1])):
+                if obn != bar:
+                    continue
+                all_o = set()
+                parts_list_o = []
+                for pn, pcs in parts.items():
+                    uniq = list(dict.fromkeys(pcs))
+                    all_o.update(uniq)
+                    parts_list_o.append(f"{pn}[{' '.join(map(str, uniq))}]")
+                merged_o = list(dict.fromkeys(all_o))
+                if len(merged_o) > 1:
+                    fc = chord.Chord(sorted(merged_o)).forteClass
+                    output.append(f"    Offset {ooff}: {' '.join(map(str, merged_o))}  Forte: {fc}  ({' + '.join(parts_list_o)})")
 
         # --- Merged PC sequence ---
         unique_count = len(set(pc_seq))
@@ -420,7 +439,7 @@ class CustomMergeDialog(QDialog):
         bar_row.addWidget(QLabel(tr("tt.custom_bars_label")))
         self._bars_input = QLineEdit()
         self._bars_input.setPlaceholderText("1, 3, 5-10, 12, 15-20")
-        self._bars_input.setText("1-30")
+        self._bars_input.setText("")
         bar_row.addWidget(self._bars_input)
         layout.addLayout(bar_row)
 
@@ -489,6 +508,7 @@ class CustomMergeDialog(QDialog):
 
         # Collect notes by (part, bar)
         data = OrderedDict()  # part_name -> {bar -> [pc]}
+        offset_data_cm = {}
         all_pcs = []
         for pi, part in enumerate(self._score.parts):
             if pi not in selected_parts:
@@ -505,10 +525,14 @@ class CustomMergeDialog(QDialog):
                     if isinstance(el, m21note.Note):
                         data[pn].setdefault(bn, []).append(el.pitch.pitchClass)
                         all_pcs.append(el.pitch.pitchClass)
+                        ok = (bn, round(el.offset, 3))
+                        offset_data_cm.setdefault(ok, {}).setdefault(pn, []).append(el.pitch.pitchClass)
                     elif isinstance(el, chord.Chord):
                         for p in el.pitches:
                             data[pn].setdefault(bn, []).append(p.pitchClass)
                             all_pcs.append(p.pitchClass)
+                            ok = (bn, round(el.offset, 3))
+                            offset_data_cm.setdefault(ok, {}).setdefault(pn, []).append(p.pitchClass)
 
         output = []
         selected_bars_str = ", ".join(str(b) for b in bars)
@@ -544,6 +568,18 @@ class CustomMergeDialog(QDialog):
                 fc_part = chord.Chord(sorted(part_merged)).forteClass
                 output.append(f"  >> Part Merge {bar_range}: {' '.join(map(str, part_seq))}  Forte: {fc_part}")
 
+        # Offset merge per bar
+        for (obn, ooff), parts in sorted(offset_data_cm.items(), key=lambda x: (x[0][0], x[0][1])):
+            all_o = set()
+            parts_list_o = []
+            for pn, pcs in parts.items():
+                uniq = list(dict.fromkeys(pcs))
+                all_o.update(uniq)
+                parts_list_o.append(f"{pn}[{' '.join(map(str, uniq))}]")
+            merged_o = list(dict.fromkeys(all_o))
+            if len(merged_o) > 1:
+                fc = chord.Chord(sorted(merged_o)).forteClass
+                output.append(f"  >> Offset {obn}.{ooff}: {' '.join(map(str, merged_o))}  Forte: {fc}  ({' + '.join(parts_list_o)})")
         # Merged result
         merged = list(dict.fromkeys(all_pcs))
         output.append(f"\n=== Merged Result ({len(merged)} unique) ===")
@@ -885,15 +921,32 @@ class TwelveToneTab(QWidget):
             if part_idx is None:
                 return
             if part_idx == -1:
-                # All parts — extract sequentially from all parts
+                # All parts — extract notes in score order by offset
                 notes = []
                 if hasattr(self._score, 'parts'):
+                    try:
+                        from music21 import note as _n, chord as _c
+                        raw = []
+                        for part in self._score.parts:
+                            for m in part.getElementsByClass('Measure'):
+                                for el in m.recurse():
+                                    if isinstance(el, _n.Note):
+                                        global_off = m.offset + el.offset
+                                        raw.append((global_off, el.pitch.name, el.pitch.pitchClass))
+                                    elif isinstance(el, _c.Chord):
+                                        global_off = m.offset + el.offset
+                                        top = el.sortAscending()[-1]
+                                        raw.append((global_off, top.pitch.name, top.pitch.pitchClass))
+                        raw.sort(key=lambda x: x[0])
+                        for _, name, pc in raw[:12]:
+                            notes.append((name, pc))
+                    except Exception as e:
+                        QMessageBox.critical(self, tr("tt.extract_failed"), f"Offset extraction error: {e}\n{__import__('traceback').format_exc()}")
+                        notes = []
+                if not notes:
+                    # Fallback: sequential
                     for part in self._score.parts:
                         notes.extend(extract_first_n_notes(part, 12))
-                        if len(notes) >= 12:
-                            break
-                else:
-                    notes = extract_first_n_notes(self._score, 12)
             elif hasattr(self._score, 'parts'):
                 notes = extract_first_n_notes(self._score.parts[part_idx], 12)
             else:

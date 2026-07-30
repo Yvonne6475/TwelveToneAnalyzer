@@ -41,6 +41,21 @@ class OverviewTab(QWidget):
         info_layout.addWidget(self._lbl_file)
         self._lbl_measures = QLabel("")
         info_layout.addWidget(self._lbl_measures)
+        self._lbl_title = QLabel("")
+        self._lbl_title.setVisible(False)
+        info_layout.addWidget(self._lbl_title)
+        self._lbl_subtitle = QLabel("")
+        self._lbl_subtitle.setVisible(False)
+        info_layout.addWidget(self._lbl_subtitle)
+        self._lbl_composer = QLabel("")
+        self._lbl_composer.setVisible(False)
+        info_layout.addWidget(self._lbl_composer)
+        self._lbl_lyricist = QLabel("")
+        self._lbl_lyricist.setVisible(False)
+        info_layout.addWidget(self._lbl_lyricist)
+        self._lbl_date = QLabel("")
+        self._lbl_date.setVisible(False)
+        info_layout.addWidget(self._lbl_date)
         layout.addWidget(info_group)
 
         # Voice diagnosis table
@@ -78,6 +93,53 @@ class OverviewTab(QWidget):
             )
         except Exception:
             self._lbl_measures.setText("")
+
+        # Read metadata from MusicXML
+        try:
+            md = score.metadata
+            if md:
+                if md.title:
+                    self._lbl_title.setText(f"Title: {md.title}")
+                    self._lbl_title.setVisible(True)
+                else:
+                    self._lbl_title.setVisible(False)
+                sub = getattr(md, 'movementName', '') or ''
+                if sub:
+                    self._lbl_subtitle.setText(f"Subtitle: {sub}")
+                    self._lbl_subtitle.setVisible(True)
+                else:
+                    self._lbl_subtitle.setVisible(False)
+                if md.composer:
+                    self._lbl_composer.setText(f"Composer: {md.composer}")
+                    self._lbl_composer.setVisible(True)
+                else:
+                    self._lbl_composer.setVisible(False)
+                lyr = getattr(md, 'lyricist', '') or ''
+                if lyr:
+                    self._lbl_lyricist.setText(f"Lyricist: {lyr}")
+                    self._lbl_lyricist.setVisible(True)
+                else:
+                    self._lbl_lyricist.setVisible(False)
+                date_str = md.date or ''
+                if not date_str and hasattr(md, 'encodingDate'):
+                    date_str = md.encodingDate or ''
+                if date_str:
+                    self._lbl_date.setText(f"Date: {date_str}")
+                    self._lbl_date.setVisible(True)
+                else:
+                    self._lbl_date.setVisible(False)
+            else:
+                self._lbl_title.setVisible(False)
+                self._lbl_subtitle.setVisible(False)
+                self._lbl_composer.setVisible(False)
+                self._lbl_lyricist.setVisible(False)
+                self._lbl_date.setVisible(False)
+        except Exception:
+            self._lbl_title.setVisible(False)
+            self._lbl_subtitle.setVisible(False)
+            self._lbl_composer.setVisible(False)
+            self._lbl_lyricist.setVisible(False)
+            self._lbl_date.setVisible(False)
 
         self._populate_table()
 

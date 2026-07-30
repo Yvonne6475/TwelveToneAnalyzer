@@ -342,6 +342,7 @@ class LatticeTab(QWidget):
         title += ", ".join(map(str, sorted(set(pc_set))))
         self._render_graph(G, levels, pos, labels, title)
 
+
     def _on_from_row(self):
         """Try to get a 12-tone row from the twelve-tone tab."""
         mw = self._main_window
@@ -401,21 +402,34 @@ class LatticeTab(QWidget):
         self._chord_combo.blockSignals(True)
         self._chord_combo.clear()
 
-        for pc, bar_str in bar_entries:
-            fc = chord.Chord(pc).forteClass
-            self._chord_entries.append(pc)
-            label = f"[Bar merge] {' '.join(map(str, pc))}  (size={len(pc)}, {fc}, {bar_str})"
-            self._chord_combo.addItem(label)
-
-        for pc, fc in sorted(chord_entries, key=lambda x: len(x[0]), reverse=True):
-            key = tuple(pc)
-            bar_str = self._lattice_bar_info.get(key, "")
-            if bar_str:
-                bar_str = f", {bar_str}"
-            self._chord_entries.append(pc)
-            label = f"{' '.join(map(str, pc))}  (size={len(pc)}, {fc}{bar_str})"
-            self._chord_combo.addItem(label)
-
+        # Use _chord_display_rows for consistent per-bar order: part→chord→bar→offset
+        ct = self._main_window._chord_tab
+        cd = getattr(ct, "_chord_display_rows", [])
+        if cd:
+            for rw in cd:
+                tt = rw["type"]
+                ps = rw["pcs"]
+                if tt == "indiv":
+                    # Skip single notes in lattice
+                    if len(ps) <= 1:
+                        continue
+                    bar_str = self._lattice_bar_info.get(tuple(ps), f"Bar {rw['bar']} ({rw.get('part','')})")
+                    fc2 = rw.get("forte", chord.Chord(ps).forteClass)
+                    self._chord_entries.append(ps)
+                    label = f"{' '.join(map(str, ps))}  (size={len(ps)}, {fc2}, {bar_str})"
+                    self._chord_combo.addItem(label)
+                elif tt in ("part_merged", "bar_merged", "offset_merged"):
+                    fc2 = rw.get("forte", chord.Chord(ps).forteClass)
+                    self._chord_entries.append(ps)
+                    pn = rw.get("part", "")
+                    if tt == "part_merged":
+                        lb = "[" + pn + " merged] "
+                    elif tt == "bar_merged":
+                        lb = "[Bar merged] "
+                    else:
+                        lb = "[Offset merged] "
+                    lb += " ".join(map(str, ps)) + "  Forte: " + fc2 + "  (Bar " + str(rw["bar"]) + ")"
+                    self._chord_combo.addItem(lb)
         self._chord_combo.blockSignals(False)
         # Expand popup width to show full item text
         fm = self._chord_combo.fontMetrics()
@@ -549,7 +563,13 @@ class LatticeTab(QWidget):
         dlg = MergeSelectorDialog(mw._score, self)
         if dlg.exec_() != QDialog.Accepted:
             return
-        data, all_pcs = dlg.get_result()
+        data, all_pcs, offset_data = dlg.get_result()
+        # Clear old cached data
+        self._chord_entries = []
+        self._chord_combo.blockSignals(True)
+        self._chord_combo.clear()
+        self._chord_combo.blockSignals(False)
+        self._collections_edit.clear()
         bar_detail = OrderedDict()
         for pn in data:
             for bn in data[pn]:
@@ -569,6 +589,18 @@ class LatticeTab(QWidget):
                 part_items.append({"pcs": sp, "seq": seq_pcs, "part_name": pn,
                     "bar_start": min(bars_seen), "bar_end": max(bars_seen),
                     "forte": _chord.Chord(sp).forteClass})
+        offset_items = []
+        for (obn, ooff), parts in sorted(offset_data.items(), key=lambda x: (x[0][0], x[0][1])):
+            all_pcs_o = set()
+            parts_list_o = []
+            for pn, pcs in parts.items():
+                uniq = list(dict.fromkeys(pcs))
+                all_pcs_o.update(uniq)
+                parts_list_o.append(f"{pn}[{' '.join(map(str, uniq))}]")
+            sorted_pcs = sorted(all_pcs_o)
+            if len(sorted_pcs) > 1:
+                offset_items.append({"pcs": sorted_pcs, "offset_pcs": " + ".join(parts_list_o),
+                    "bar": obn, "offset": ooff, "forte": _chord.Chord(sorted_pcs).forteClass})
         bar_items, indiv_items = [], []
         for bn in sorted(bar_detail):
             all_pb = set()
@@ -581,38 +613,52 @@ class LatticeTab(QWidget):
             merged = sorted(all_pb)
             if len(merged) > 1:
                 bar_items.append({"pcs": merged, "bar": bn, "parts": ", ".join(f"{pn} [{', '.join(map(str, bar_detail[bn][pn]))}]" for pn in bar_detail[bn]), "forte": _chord.Chord(merged).forteClass})
-        sel = select_merge_items(self, part_items + bar_items + indiv_items, bar_items)
+        all_ordered = list(part_items)
+        for bn in sorted(bar_detail):
+            for _it in indiv_items:
+                if _it["bar"] == bn:
+                    all_ordered.append(_it)
+            for _it in bar_items:
+                if _it["bar"] == bn:
+                    all_ordered.append(_it)
+            for _it in offset_items:
+                if _it["bar"] == bn:
+                    all_ordered.append(_it)
+        sel = select_merge_items(self, all_ordered, bar_items)
         if sel:
             sel_set = set(sel)
             out = []
             self._chord_entries = []
             self._chord_combo.blockSignals(True)
             self._chord_combo.clear()
-            for _it in part_items:
-                _pk = " ".join(map(str, _it["pcs"]))
-                _s = " ".join(map(str, _it.get('seq', _it['pcs'])))
-                if _pk in sel_set:
-                    out.append(f"# [Part Merge] {_it['part_name']} (Bars {_it['bar_start']}-{_it['bar_end']}): [{_pk}] Forte: {_it['forte']}")
-                    out.append(f"# Constituents: [{_s}]({_it['part_name']})")
+            for _item in all_ordered:
+                pc_key = " ".join(map(str, _item["pcs"]))
+                if pc_key not in sel_set:
+                    continue
+                if 'part_name' in _item and 'bar_start' in _item:
+                    _s = " ".join(map(str, _item.get('seq', _item['pcs'])))
+                    out.append(f"# [Part Merge] {_item['part_name']} (Bars {_item['bar_start']}-{_item['bar_end']}): [{pc_key}] Forte: {_item['forte']}")
+                    out.append(f"# Constituents: [{_s}]({_item['part_name']})")
                     out.append(_s)
-                    self._chord_entries.append(_it["pcs"])
-                    self._chord_combo.addItem(f"[Part Merge] {_it['part_name']}: [{_s}] ({_it['forte']})")
-            for _it in bar_items:
-                _pk = " ".join(map(str, _it["pcs"]))
-                _s = " ".join(map(str, _it.get('orig_seq', _it["pcs"])))
-                if _pk in sel_set:
-                    out.append(f"# [Bar Merge] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('parts','')})")
-                    out.append(_s)
-                    self._chord_entries.append(_it["pcs"])
-                    self._chord_combo.addItem(f"[Bar Merge] {_it['bar']}: [{_s}] ({_it.get('parts','')})")
-            for _it in indiv_items:
-                _pk = " ".join(map(str, _it["pcs"]))
-                _s = " ".join(map(str, _it.get('orig_pcs', _it["pcs"])))
-                if _pk in sel_set:
-                    out.append(f"# [Chord] Bar {_it['bar']}: [{_s}] Forte: {_it['forte']} ({_it.get('part','')})")
-                    out.append(_s)
-                    self._chord_entries.append(_it["pcs"])
-                    self._chord_combo.addItem(f"[Chord] {_it['bar']}: [{_s}] ({_it.get('part','')})")
+                    self._chord_entries.append(_item["pcs"])
+                    self._chord_combo.addItem(f"[Part Merge] {_item['part_name']}: [{_s}] ({_item['forte']})")
+                elif 'offset' in _item:
+                    out.append(f"# [Offset Merge] Bar {_item['bar']} offset {_item['offset']}: [{pc_key}] Forte: {_item['forte']} ({_item['offset_pcs']})")
+                    out.append(pc_key)
+                    self._chord_entries.append(_item["pcs"])
+                    self._chord_combo.addItem(f"[Offset Merge] {_item['bar']} offset {_item['offset']}: [{pc_key}] ({_item.get('offset_pcs','')})")
+                elif 'parts' in _item:
+                    _s = " ".join(map(str, _item.get('orig_seq', _item["pcs"])))
+                    out.append(f"# [Bar Merge] Bar {_item['bar']}: [{_s}] Forte: {_item['forte']} ({_item.get('parts','')})")
+                    out.append(pc_key)
+                    self._chord_entries.append(_item["pcs"])
+                    self._chord_combo.addItem(f"[Bar Merge] {_item['bar']}: [{_s}] ({_item.get('parts','')})")
+                else:
+                    _s = " ".join(map(str, _item.get('orig_pcs', _item["pcs"])))
+                    out.append(f"# [Chord] Bar {_item['bar']}: [{_s}] Forte: {_item['forte']} ({_item.get('part','')})")
+                    out.append(pc_key)
+                    self._chord_entries.append(_item["pcs"])
+                    self._chord_combo.addItem(f"[Chord] {_item['bar']}: [{_s}] ({_item.get('part','')})")
             self._chord_combo.blockSignals(False)
             self._chord_combo.setEnabled(True)
             self._btn_chord_relations.setEnabled(True)

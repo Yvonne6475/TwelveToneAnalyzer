@@ -165,22 +165,34 @@ class ForteNameTab(QWidget):
                 QTableWidgetItem(display_pc))
             self._table.setItem(row, 1,
                 QTableWidgetItem(str(r["normal"])))
-            self._table.setItem(row, 2,
-                QTableWidgetItem(" ".join(map(str, r["intervals"]))))
-            self._table.setItem(row, 3,
-                QTableWidgetItem(r["iv"]))
-            self._table.setItem(row, 4,
-                QTableWidgetItem(r["prime"]))
-            self._table.setItem(row, 5,
-                QTableWidgetItem(r["forte"]))
-            self._table.setItem(row, 6,
-                QTableWidgetItem("[" + ", ".join(map(str, r["p_form"])) + "]"))
-            self._table.setItem(row, 7,
-                QTableWidgetItem("[" + ", ".join(map(str, r["i_form"])) + "]"))
-            self._table.setItem(row, 8,
-                QTableWidgetItem("[" + ", ".join(map(str, r["r_form"])) + "]"))
-            self._table.setItem(row, 9,
-                QTableWidgetItem("[" + ", ".join(map(str, r["ri_form"])) + "]"))
+            item2 = QTableWidgetItem(" ".join(map(str, r["intervals"])))
+            item2.setToolTip(" ".join(map(str, r["intervals"])))
+            self._table.setItem(row, 2, item2)
+            item3 = QTableWidgetItem(r["iv"])
+            item3.setToolTip(r["iv"])
+            self._table.setItem(row, 3, item3)
+            item4 = QTableWidgetItem(r["prime"])
+            item4.setToolTip(r["prime"])
+            self._table.setItem(row, 4, item4)
+            item5 = QTableWidgetItem(r["forte"])
+            item5.setToolTip(r["forte"])
+            self._table.setItem(row, 5, item5)
+            v6 = "[" + ", ".join(map(str, r["p_form"])) + "]"
+            item6 = QTableWidgetItem(v6)
+            item6.setToolTip(v6)
+            self._table.setItem(row, 6, item6)
+            v7 = "[" + ", ".join(map(str, r["i_form"])) + "]"
+            item7 = QTableWidgetItem(v7)
+            item7.setToolTip(v7)
+            self._table.setItem(row, 7, item7)
+            v8 = "[" + ", ".join(map(str, r["r_form"])) + "]"
+            item8 = QTableWidgetItem(v8)
+            item8.setToolTip(v8)
+            self._table.setItem(row, 8, item8)
+            v9 = "[" + ", ".join(map(str, r["ri_form"])) + "]"
+            item9 = QTableWidgetItem(v9)
+            item9.setToolTip(v9)
+            self._table.setItem(row, 9, item9)
 
         self._btn_copy.setEnabled(bool(self._results))
         self._btn_export.setEnabled(bool(self._results))
@@ -238,37 +250,43 @@ class ForteNameTab(QWidget):
         if not hasattr(chord_tab, '_results') or not chord_tab._results:
             QMessageBox.information(self, tr("forte.title"),
                                     tr("forte.no_chord_msg"))
+            self._btn_from_chord.setEnabled(True)
+            QApplication.restoreOverrideCursor()
             return
 
         from PyQt5.QtWidgets import (QDialog, QListWidget, QDialogButtonBox,
                                      QCheckBox)
 
-        # 1) Merge by bar: union of all parts' pc_sets within the same measure
-        bar_sets = {}
-        bar_parts = {}
-        for r in chord_tab._results:
-            if len(r.pc_set) <= 1:
-                continue
-            bar_sets.setdefault(r.bar, set()).update(r.pc_set)
-            if r.part_name not in bar_parts.get(r.bar, set()):
-                bar_parts.setdefault(r.bar, set()).add(r.part_name)
-        bar_items = []
-        for bar in sorted(bar_sets):
-            pc = sorted(bar_sets[bar])
-            if pc:
-                c = chord.Chord(pc)
-                parts = ", ".join(sorted(bar_parts.get(bar, set())))
-                bar_items.append({"pcs": pc, "bar": bar, "parts": parts, "forte": c.forteClass})
-
-        # 2) Individual chord/note items (one per ChordResult, each with its bar and part)
-        indiv_items = []
-        for r in chord_tab._results:
-            if len(r.pc_set) <= 1:
-                continue
-            indiv_items.append({"pcs": r.pc_set, "bar": r.bar, "part": r.part_name, "forte": r.forte_class})
-
-        # bar-merged first, then individual
-        all_items = part_items + bar_items + indiv_items
+        # Use chord_tab's display rows directly (same order as table)
+        all_items = []
+        if hasattr(chord_tab, '_chord_display_rows') and chord_tab._chord_display_rows:
+            for row in chord_tab._chord_display_rows:
+                t = row["type"]
+                if t == "indiv":
+                    all_items.append({"pcs": row["pcs"], "bar": row["bar"],
+                        "part": row["part"], "forte": row["forte"], "orig_pcs": row["pcs"],
+                        "_type": "indiv", "_offset": row["offset"]})
+                elif t == "part_merged":
+                    all_items.append({"pcs": row["pcs"], "bar": row["bar"],
+                        "part": row["part"], "forte": row["forte"],
+                        "_type": "part_merged"})
+                elif t == "bar_merged":
+                    all_items.append({"pcs": row["pcs"], "bar": row["bar"],
+                        "parts": row["part"], "forte": row["forte"],
+                        "_type": "bar_merged"})
+                elif t == "offset_merged":
+                    all_items.append({"pcs": row["pcs"], "bar": row["bar"],
+                        "offset": row.get("offset",""), "forte": row["forte"],
+                        "offset_pcs": row["part"], "_type": "offset_merged"})
+        # Fallback: build from _results
+        if not all_items and hasattr(chord_tab, '_results'):
+            seen = set()
+            for r in chord_tab._results:
+                key = tuple(sorted(r.pc_set))
+                if key not in seen:
+                    seen.add(key)
+                    all_items.append({"pcs": r.pc_set, "bar": r.bar,
+                        "part": r.part_name, "forte": r.forte_class, "_type": "indiv"})
 
         self._btn_from_chord.setEnabled(True); QApplication.restoreOverrideCursor()
         dlg = QDialog(self)
@@ -285,14 +303,19 @@ class ForteNameTab(QWidget):
         lst = QListWidget()
         for idx, item in enumerate(all_items):
             pc_str = " ".join(map(str, item["pcs"]))
-            if idx < len(bar_items):
-                parts = item.get("parts", "")
-                label = tr("forte.bar_merge_item", bar=item["bar"],
-                           pc=pc_str, forte=item["forte"]) + f" ({parts})"
-            else:
+            t = item.get("_type", "")
+            if t == "indiv":
                 part = item.get("part", "")
                 label = tr("forte.chord_item", bar=item["bar"],
                            pc=pc_str, forte=item["forte"]) + f" ({part})"
+            elif t == "part_merged":
+                label = f"[{item['part']} merged] Bar {item['bar']}: [{pc_str}] Forte: {item['forte']}"
+            elif t == "bar_merged":
+                label = f"[Bar merged] Bar {item['bar']}: [{pc_str}] Forte: {item['forte']}"
+            elif t == "offset_merged":
+                label = f"[Offset merged] Bar {item['bar']} offset {item.get('offset','')}: [{pc_str}] Forte: {item['forte']} ({item.get('offset_pcs','')})"
+            else:
+                label = f"Bar {item['bar']}: [{pc_str}] Forte: {item['forte']}"
             lst.addItem(label)
             lst.item(lst.count() - 1).setCheckState(Qt.Checked)
             lst.item(lst.count() - 1).setData(Qt.UserRole, pc_str)
@@ -309,15 +332,24 @@ class ForteNameTab(QWidget):
         layout.addWidget(buttons)
 
         if dlg.exec_() != QDialog.Accepted:
+            self._btn_from_chord.setEnabled(True)
+            QApplication.restoreOverrideCursor()
             return
 
         selected = []
         for i in range(lst.count()):
             if lst.item(i).checkState() == Qt.Checked:
-                selected.append(lst.item(i).data(Qt.UserRole))
+                label = lst.item(i).text()
+                pc_str = lst.item(i).data(Qt.UserRole)
+                selected.append(f"# {label}")
+                selected.append(pc_str)
 
         if selected:
             self._input_edit.setText("\n".join(selected))
+            from PyQt5.QtWidgets import QApplication; QApplication.processEvents()
+        else:
+            QMessageBox.information(self, tr("forte.title"), tr("forte.no_chord_msg"))
+
 
     def _on_merge_from_score(self):
         """Merge selected parts/bars from the score and analyze."""
@@ -337,7 +369,7 @@ class ForteNameTab(QWidget):
         dlg = MergeSelectorDialog(mw._score, self)
         if dlg.exec_() != QDialog.Accepted:
             return
-        data, all_pcs = dlg.get_result()
+        data, all_pcs, offset_data = dlg.get_result()
         # Build selectable items: bar-merged + per-part
         from music21 import chord as _chord
         bar_items = []
@@ -367,6 +399,18 @@ class ForteNameTab(QWidget):
                 part_items.append({"pcs": sorted_pcs, "seq": seq_pcs, "part_name": pn,
                     "bar_start": min(bars_seen), "bar_end": max(bars_seen),
                     "forte": _chord.Chord(sorted_pcs).forteClass})
+        offset_items = []
+        for (obn, ooff), parts in sorted(offset_data.items(), key=lambda x: (x[0][0], x[0][1])):
+            all_pcs_o = set()
+            parts_list_o = []
+            for pn, pcs in parts.items():
+                uniq = list(dict.fromkeys(pcs))
+                all_pcs_o.update(uniq)
+                parts_list_o.append(f"{pn}[{' '.join(map(str, uniq))}]")
+            sorted_pcs = sorted(all_pcs_o)
+            if len(sorted_pcs) > 1:
+                offset_items.append({"pcs": sorted_pcs, "offset_pcs": " + ".join(parts_list_o),
+                    "bar": obn, "offset": ooff, "forte": _chord.Chord(sorted_pcs).forteClass})
         for bn in sorted(bar_detail):
             all_pcs_for_bar = set()
             bar_parts = []
@@ -381,7 +425,17 @@ class ForteNameTab(QWidget):
             if len(merged_pcs) > 1:
                 parts_str = ", ".join(bar_parts)
                 bar_items.append({"pcs": merged_pcs, "bar": bn, "parts": parts_str, "forte": _chord.Chord(merged_pcs).forteClass})
-        all_items = part_items + bar_items + indiv_items
+        all_items = list(part_items)
+        for bn in sorted(bar_detail):
+            for _it in indiv_items:
+                if _it["bar"] == bn:
+                    all_items.append(_it)
+            for _it in bar_items:
+                if _it["bar"] == bn:
+                    all_items.append(_it)
+            for _it in offset_items:
+                if _it["bar"] == bn:
+                    all_items.append(_it)
         # --- Selection dialog (same as Get from chords) ---
         from PyQt5.QtWidgets import (QDialog as _QDialog, QVBoxLayout as _QVBox,
             QListWidget as _QList, QCheckBox as _QCheckBox, QDialogButtonBox as _QBtnBox)
@@ -403,6 +457,8 @@ class ForteNameTab(QWidget):
                 _disp_pc = " ".join(map(str, _item.get('orig_seq', _item['pcs'])))
                 _label = tr("forte.bar_merge_item", bar=_item["bar"], pc=_disp_pc, forte=_item["forte"])
                 _label += f" ({_item.get('parts','')})"
+            elif 'offset' in _item:
+                _label = f"[Offset Merge] Bar {_item['bar']} offset {_item['offset']}: [{_pc_str}] Forte: {_item['forte']} ({_item['offset_pcs']})"
             else:
                 _chord_pc = " ".join(map(str, _item.get('orig_pcs', _item['pcs'])))
                 _label = tr("forte.chord_item", bar=_item["bar"], pc=_chord_pc, forte=_item["forte"])

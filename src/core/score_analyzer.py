@@ -203,7 +203,7 @@ def extract_first_n_notes(part, n: int = 12) -> list[tuple]:
             result.append((el.pitch.name, el.pitch.pitchClass))
         elif isinstance(el, chord.Chord):
             top = el.sortAscending()[-1]
-            result.append((top.name, top.pitchClass))
+            result.append((top.name, top.pitch.pitchClass))
         if len(result) >= n:
             break
     return result
