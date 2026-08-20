@@ -120,9 +120,91 @@ jobs:
           path: dist/TwelveToneAnalyzer_Setup_v*.exe
           retention-days: 7
 
+
+  # ════════════════════════════════════════════════════════════════
+  # TMA Launcher — auto-updating thin client (macOS)
+  # ════════════════════════════════════════════════════════════════
+  build-launcher-macos:
+    runs-on: macos-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.build_type == 'full'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Extract version
+        id: ver
+        run: |
+          V=$(python -c "from src.core.updater import VERSION; print(VERSION)")
+          echo "version=$V" >> $GITHUB_OUTPUT
+
+      - name: Install minimal deps (PyQt5 only)
+        run: |
+          python -m pip install --upgrade pip
+          pip install PyQt5>=5.15,<5.16 pyinstaller==5.13.2
+
+      - name: Build Launcher .app
+        run: pyinstaller TMA_Launcher_mac.spec
+
+      - name: Package Launcher ZIP
+        run: |
+          VER="${{ steps.ver.outputs.version }}"
+          cd dist
+          zip -r "TMA_Launcher_macOS_v${VER}.zip" "TMA Launcher.app"
+          mv "TMA_Launcher_macOS_v${VER}.zip" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TMA-Launcher-macOS
+          path: dist/TMA_Launcher_macOS_v*.zip
+          retention-days: 7
+
+  # ════════════════════════════════════════════════════════════════
+  # TMA Launcher — auto-updating thin client (Windows)
+  # ════════════════════════════════════════════════════════════════
+  build-launcher-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Extract version
+        id: ver
+        shell: bash
+        run: |
+          V=$(python -c "from src.core.updater import VERSION; print(VERSION)")
+          echo "version=$V" >> $GITHUB_OUTPUT
+
+      - name: Install minimal deps (PyQt5 only)
+        run: |
+          python -m pip install --upgrade pip
+          pip install PyQt5>=5.15,<5.16 pyinstaller==5.13.2
+
+      - name: Build Launcher .exe
+        run: pyinstaller TMA_Launcher.spec
+
+      - name: Package Launcher ZIP
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.ver.outputs.version }}"
+          $src = "dist/TMA_Launcher"
+          $dst = "dist/TMA_Launcher_Windows_v${ver}.zip"
+          Compress-Archive -Path "$src/*" -DestinationPath $dst
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TMA-Launcher-Windows
+          path: dist/TMA_Launcher_Windows_v*.zip
+          retention-days: 7
+
   # ── GitHub Release (only on tag) ───────────────────────────────
   release:
-    needs: [build-macos, build-windows]
+    needs: [build-macos, build-windows, build-launcher-macos, build-launcher-windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -141,6 +223,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: Windows-Portable-ZIP
+          path: artifacts/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: TMA-Launcher-macOS
+          path: artifacts/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: TMA-Launcher-Windows
           path: artifacts/
 
       - uses: softprops/action-gh-release@v2
