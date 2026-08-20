@@ -160,16 +160,24 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: Windows-Portable-ZIP
           path: artifacts/
 
+      - name: Extract version
+        id: ver
+        run: |
+          V=$(python -c "from src.core.updater import VERSION; print(VERSION)")
+          echo "version=$V" >> $GITHUB_OUTPUT
+
       - name: Upload ZIP to release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
-          tag_name: v1.3.3.2
+          tag_name: v${{ steps.ver.outputs.version }}
           draft: false
           prerelease: false
         env:
