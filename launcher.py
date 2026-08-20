@@ -14,11 +14,6 @@ VENV_DIR = BASE_DIR / "venv"
 REQ_HASH_FILE = BASE_DIR / "req_hash.txt"
 
 log_lines = []
-_qt_app = None
-_label = None
-_progress = None
-_status = None
-_window = None
 
 def find_python():
     if getattr(sys, 'frozen', False):
@@ -96,130 +91,149 @@ def ensure_venv(progress_callback=None):
         REQ_HASH_FILE.write_text(current_hash)
     return True
 
-def _create_ui():
-    global _qt_app, _label, _progress, _status, _window
-    from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QProgressBar, QTextEdit
-    from PyQt5.QtCore import Qt
-    from PyQt5.QtGui import QFont
-    _qt_app = QApplication.instance() or QApplication(sys.argv)
-    _qt_app.setApplicationName("TMA Launcher")
-    _window = QWidget()
-    _window.setWindowTitle("TwelveToneAnalyzer - Updating...")
-    _window.setFixedSize(480, 320)
-    _window.setWindowFlags(_window.windowFlags() | Qt.WindowStaysOnTopHint)
-    screen = _qt_app.primaryScreen()
-    if screen:
-        cp = screen.availableGeometry().center()
-        qr = _window.frameGeometry()
-        qr.moveCenter(cp)
-        _window.move(qr.topLeft())
-    layout = QVBoxLayout(_window)
-    layout.setContentsMargins(24, 24, 24, 24)
-    layout.setSpacing(12)
-    _label = QLabel("Checking for updates...")
-    font = QFont("Segoe UI" if sys.platform == "win32" else "Helvetica Neue", 16, QFont.Bold)
-    _label.setFont(font)
-    _label.setAlignment(Qt.AlignCenter)
-    layout.addWidget(_label)
-    _progress = QProgressBar()
-    _progress.setRange(0, 0)
-    _progress.setTextVisible(False)
-    layout.addWidget(_progress)
-    _status = QTextEdit()
-    _status.setReadOnly(True)
-    _status.setFont(QFont("Consolas" if sys.platform == "win32" else "Menlo", 11))
-    _status.setMaximumHeight(180)
-    _status.setStyleSheet("QTextEdit { background: transparent; border: none; }")
-    layout.addWidget(_status)
-    _window.show()
-    _qt_app.processEvents()
 
-def update_status(msg):
-    log_lines.append(msg)
-    if _status:
-        _status.setPlainText("\n".join(log_lines[-12:]))
-        bar = _status.verticalScrollBar()
-        bar.setValue(bar.maximum())
-    if _qt_app:
-        _qt_app.processEvents()
+class LauncherBridge(QObject):
+    """Thread-safe bridge: background thread emits signals, main thread updates UI."""
+    status_signal = pyqtSignal(str)
+    label_signal = pyqtSignal(str)
+    done_signal = pyqtSignal(int, str)  # exit_code, error_message
 
-def update_label(msg):
-    if _label:
-        _label.setText(msg)
-        if _qt_app:
-            _qt_app.processEvents()
 
-def main_workflow():
+def main_workflow(bridge):
+    def _status(msg):
+        log_lines.append(msg)
+        bridge.status_signal.emit("\n".join(log_lines[-12:]))
+
+    def _label(msg):
+        bridge.label_signal.emit(msg)
+
     if not git_available():
-        update_status("[X] Git not found. Install from https://git-scm.com")
-        if _progress:
-            _progress.setRange(0, 100)
-            _progress.setValue(100)
-        if _window:
-            _window.setWindowTitle("TMA - Error")
-        update_label("Git Required")
-        _qt_app and _qt_app.exec_()
-        sys.exit(1)
+        _status("[X] Git not found. Install from https://git-scm.com")
+        bridge.label_signal.emit("Git Required")
+        bridge.done_signal.emit(1, "Git not found")
+        return
+
     BASE_DIR.mkdir(parents=True, exist_ok=True)
+
     if not REPO_DIR.exists():
-        update_label("Downloading...")
-        update_status("First install - cloning repository...")
+        _label("Downloading...")
+        _status("First install - cloning repository...")
         rc, out, err = run(["git", "clone", "--depth", "1", "--branch", REPO_BRANCH, REPO_URL, str(REPO_DIR)], timeout=300)
         if rc != 0:
-            update_status(f"[X] Clone failed: {err}")
-            _qt_app and _qt_app.exec_()
-            sys.exit(1)
-        update_status("[OK] Repository cloned")
+            _status(f"[X] Clone failed: {err}")
+            bridge.done_signal.emit(1, err)
+            return
+        _status("[OK] Repository cloned")
     else:
-        update_label("Checking for updates...")
-        update_status("Fetching latest changes...")
+        _label("Checking for updates...")
+        _status("Fetching latest changes...")
         rc, out, err = run(["git", "fetch", "--depth", "1", "origin", REPO_BRANCH], cwd=REPO_DIR, timeout=30)
         if rc == 0:
             rc2, out2, err2 = run(["git", "reset", "--hard", f"origin/{REPO_BRANCH}"], cwd=REPO_DIR, timeout=30)
             if rc2 == 0:
-                update_status("[OK] Up to date" if "HEAD is now at" in out2 else "[OK] Updated to latest")
+                _status("[OK] Up to date" if "HEAD is now at" in out2 else "[OK] Updated to latest")
             else:
-                update_status("[!] Offline mode - using cached version")
+                _status("[!] Offline mode - using cached version")
         else:
-            update_status("[!] Offline mode - using cached version")
-    update_label("Setting up environment...")
-    if not ensure_venv(progress_callback=update_status):
-        update_status("[X] Environment setup failed")
-        _qt_app and _qt_app.exec_()
-        sys.exit(1)
-    update_status("[OK] Environment ready")
-    update_label("Launching...")
-    update_status("Starting TwelveToneAnalyzer...")
-    if _progress:
-        _progress.setRange(0, 100)
-        _progress.setValue(100)
-    _qt_app and _qt_app.processEvents()
-    if _window:
-        _window.hide()
-    vpy = venv_python()
-    main_py = REPO_DIR / "main.py"
-    if not main_py.exists():
-        update_status(f"[X] main.py not found: {main_py}")
-        _window and _window.show()
-        _qt_app and _qt_app.exec_()
-        sys.exit(1)
-    env = os.environ.copy()
-    env["PYTHONUNBUFFERED"] = "1"
-    try:
-        subprocess.run([vpy, str(main_py)], cwd=REPO_DIR, env=env)
-    except KeyboardInterrupt:
-        pass
-    except Exception as e:
-        update_label("Launch Failed")
-        update_status(f"[X] Error: {e}")
-        _window and _window.show()
-        _qt_app and _qt_app.exec_()
-        sys.exit(1)
+            _status("[!] Offline mode - using cached version")
+
+    _label("Setting up environment...")
+    if not ensure_venv(progress_callback=_status):
+        _status("[X] Environment setup failed")
+        bridge.done_signal.emit(1, "venv setup failed")
+        return
+
+    _status("[OK] Environment ready")
+    _label("Launching...")
+    _status("Starting TwelveToneAnalyzer...")
+
+    bridge.done_signal.emit(0, "")  # 0 = success, launch main.py
+
 
 if __name__ == "__main__":
-    try:
-        _create_ui()
-        threading.Thread(target=main_workflow, daemon=True).start()
-        _qt_app.exec_()
-    except Exception:
-        main_workflow()
+    from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QProgressBar, QTextEdit
+    from PyQt5.QtCore import Qt, pyqtSignal, QObject
+    from PyQt5.QtGui import QFont
+
+    app = QApplication(sys.argv)
+    app.setApplicationName("TMA Launcher")
+
+    window = QWidget()
+    window.setWindowTitle("TwelveToneAnalyzer - Updating...")
+    window.setFixedSize(480, 320)
+    window.setWindowFlags(window.windowFlags() | Qt.WindowStaysOnTopHint)
+
+    screen = app.primaryScreen()
+    if screen:
+        cp = screen.availableGeometry().center()
+        qr = window.frameGeometry()
+        qr.moveCenter(cp)
+        window.move(qr.topLeft())
+
+    layout = QVBoxLayout(window)
+    layout.setContentsMargins(24, 24, 24, 24)
+    layout.setSpacing(12)
+
+    label_widget = QLabel("Checking for updates...")
+    label_widget.setFont(QFont("Helvetica Neue", 16, QFont.Bold))
+    label_widget.setAlignment(Qt.AlignCenter)
+    layout.addWidget(label_widget)
+
+    progress = QProgressBar()
+    progress.setRange(0, 0)
+    progress.setTextVisible(False)
+    layout.addWidget(progress)
+
+    status_widget = QTextEdit()
+    status_widget.setReadOnly(True)
+    status_widget.setFont(QFont("Menlo", 11))
+    status_widget.setMaximumHeight(180)
+    status_widget.setStyleSheet("QTextEdit { background: transparent; border: none; }")
+    layout.addWidget(status_widget)
+
+    window.show()
+
+    bridge = LauncherBridge()
+
+    def _on_status(text):
+        status_widget.setPlainText(text)
+        bar = status_widget.verticalScrollBar()
+        bar.setValue(bar.maximum())
+
+    def _on_label(text):
+        label_widget.setText(text)
+
+    def _on_done(exit_code, error):
+        progress.setRange(0, 100)
+        progress.setValue(100)
+        if exit_code != 0:
+            window.setWindowTitle("TMA - Error")
+            label_widget.setText("Failed")
+            status_widget.append(f"\n[X] {error}")
+            return
+        window.hide()
+        vpy = venv_python()
+        main_py = REPO_DIR / "main.py"
+        if not main_py.exists():
+            window.show()
+            label_widget.setText("Error")
+            status_widget.append(f"\n[X] main.py not found: {main_py}")
+            return
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
+        try:
+            subprocess.run([vpy, str(main_py)], cwd=REPO_DIR, env=env)
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            window.show()
+            label_widget.setText("Launch Failed")
+            status_widget.append(f"\n[X] Error: {e}")
+        sys.exit(0)
+
+    bridge.status_signal.connect(_on_status)
+    bridge.label_signal.connect(_on_label)
+    bridge.done_signal.connect(_on_done)
+
+    threading.Thread(target=main_workflow, args=(bridge,), daemon=True).start()
+    app.exec_()
