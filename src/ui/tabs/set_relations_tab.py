@@ -485,36 +485,38 @@ class SetRelationsTab(QWidget):
 
         self._universe_edit.setText("\n".join(all_lines))
 
-        # Populate combo using _chord_display_rows for consistent per-bar order
+        # Populate combo using same logic as lattice tab: iterate _chord_display_rows
         self._target_combo.blockSignals(True)
         self._target_combo.clear()
-        seen_in_combo = set()
+        seen_pcs = set()
         for row in display_rows:
             t = row.get("type", "")
             pcs = row.get("pcs", [])
             if not pcs:
                 continue
-            pc_str = _pc_str(pcs)
-            if pc_str in seen_in_combo:
+            key = tuple(pcs)
+            if key in seen_pcs:
                 continue
-            seen_in_combo.add(pc_str)
-            bar = row.get("bar", "")
-            part = row.get("part", "")
-            forte_label = row.get("forte", _forte(pcs))
+            seen_pcs.add(key)
             if t == "indiv":
                 if len(pcs) <= 1:
                     continue
-                label = tr("sr.combo_item", pc=pc_str, forte=forte_label) + f" (Bar {bar} ({part}))"
+                label = f"{' '.join(map(str, pcs))}  Forte: {row.get('forte', _forte(pcs))}  (Bar {row['bar']} ({row.get('part','')}))"
+                self._target_combo.addItem(label, _pc_str(pcs))
             elif t == "part_merged":
-                label = f"[Part merged] Bar {bar} ({part}): {pc_str}  Forte: {forte_label}"
+                fc = row.get('forte', _forte(pcs))
+                label = f"[{row.get('part','')} merged] {' '.join(map(str, pcs))}  Forte: {fc}  (Bar {row['bar']})"
+                self._target_combo.addItem(label, _pc_str(pcs))
             elif t == "bar_merged":
-                label = f"[Bar merged] Bar {bar}: {pc_str}  Forte: {forte_label}"
+                fc = row.get('forte', _forte(pcs))
+                label = f"[Bar merged] {' '.join(map(str, pcs))}  Forte: {fc}  (Bar {row['bar']})"
+                self._target_combo.addItem(label, _pc_str(pcs))
             elif t == "offset_merged":
+                fc = row.get('forte', _forte(pcs))
                 off = row.get("offset", "")
-                label = f"[Offset merged] Bar {bar} {off}: {pc_str}  Forte: {forte_label} ({part})"
-            else:
-                label = f"Bar {bar}: {pc_str}  Forte: {forte_label}"
-            self._target_combo.addItem(label, pc_str)
+                label = f"[Offset merged] {' '.join(map(str, pcs))}  Forte: {fc}  (Bar {row['bar']})"
+                self._target_combo.addItem(label, _pc_str(pcs))
+
         self._target_combo.blockSignals(False)
 
         if all_lines:

@@ -3,7 +3,7 @@
 import os
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
-    QComboBox, QPushButton, QTextEdit, QLineEdit, QDialog, QSpinBox,
+    QPushButton, QTextEdit, QLineEdit, QDialog, QSpinBox,
     QCheckBox, QMessageBox, QFileDialog, QScrollArea,
 )
 from PyQt5.QtCore import Qt
@@ -14,9 +14,7 @@ from src.core.twelve_tone import (
     generate_forms, generate_matrix, make_row_stream,
     divide_into_chords, make_group_stream,
 )
-from src.core.score_analyzer import (
-    extract_first_n_notes, diagnose_all_parts, auto_select_melody_part, get_measure_range,
-)
+from src.core.score_analyzer import diagnose_all_parts
 from src.ui.widgets.score_opener import setup_open_menu
 from src.ui.widgets.matrix_widget import MatrixWidget
 from src.ui.widgets.collapsible_panel import CollapsiblePanel
@@ -670,14 +668,17 @@ class TwelveToneTab(QWidget):
         top_bar.addStretch()
         layout.addLayout(top_bar)
 
-        # ── Row extraction (unchanged) ───────────────────────────────
+        # ── Row extraction with part + measure selection ────────────
         extract_group = QGroupBox(tr("tt.extract_group"))
         extract_layout = QVBoxLayout(extract_group)
 
         top_row = QHBoxLayout()
         top_row.addWidget(QLabel(tr("tt.part_label")))
-        self._part_combo = QComboBox()
-        top_row.addWidget(self._part_combo, 1)
+        self._part_container = QWidget()
+        self._part_layout = QHBoxLayout(self._part_container)
+        self._part_layout.setContentsMargins(0, 0, 0, 0)
+        self._part_checks = {}
+        top_row.addWidget(self._part_container, 1)
 
         self._btn_extract = QPushButton(tr("tt.btn_extract"))
         self._btn_extract.setEnabled(False)
@@ -686,13 +687,21 @@ class TwelveToneTab(QWidget):
         top_row.addStretch()
         extract_layout.addLayout(top_row)
 
+        meas_row = QHBoxLayout()
+        meas_row.addWidget(QLabel(tr("tt.custom_bars_label")))
+        self._bars_input = QLineEdit()
+        self._bars_input.setPlaceholderText("1, 3, 5-10")
+        meas_row.addWidget(self._bars_input, 1)
+        meas_row.addStretch()
+        extract_layout.addLayout(meas_row)
+
         self._extracted_label = QLabel("")
         extract_layout.addWidget(self._extracted_label)
 
         manual_row = QHBoxLayout()
         manual_row.addWidget(QLabel(tr("tt.manual_label")))
         self._manual_input = QLineEdit()
-        self._manual_input.setPlaceholderText("6 8 11 1 4 9 7 10 0 3 5 2")
+        self._manual_input.setPlaceholderText(tr("tt.manual_placeholder"))
         manual_row.addWidget(self._manual_input)
         self._btn_show_row = QPushButton(tr("tt.btn_show_row"))
         self._btn_show_row.pressed.connect(lambda: self._on_show_row())
@@ -901,58 +910,89 @@ class TwelveToneTab(QWidget):
         self._row_result.clear()
         self._matrix_widget.setVisible(False)
         self._matrix_numeric.clear()
-        # Repopulate part combo
-        self._part_combo.clear()
-        self._part_combo.addItem(tr("viz.all_parts"), -1)
+        # Repopulate part checkboxes
+        for cb in list(self._part_checks.values()):
+            self._part_layout.removeWidget(cb)
+            cb.deleteLater()
+        self._part_checks = {}
         diagnostics = diagnose_all_parts(score)
         for d in diagnostics:
-            self._part_combo.addItem(f"{d.part_name}", d.index)
-        if diagnostics:
-            best_idx = auto_select_melody_part(score, diagnostics)
-            self._part_combo.setCurrentIndex(best_idx + 1 if best_idx + 1 < self._part_combo.count() else 0)
+            cb = QCheckBox(d.part_name if d.part_name else f"Part {d.index + 1}")
+            cb.setProperty("part_idx", d.index)
+            cb.setChecked(True)
+            self._part_checks[d.index] = cb
+            self._part_layout.addWidget(cb)
         self._btn_extract.setEnabled(True)
         self._btn_confirm.setEnabled(True)
 
     def _on_extract(self):
         if not self._score:
             return
+        selected_parts = set()
+        for cb in self._part_checks.values():
+            if cb.isChecked():
+                pi = cb.property("part_idx")
+                if pi is not None:
+                    selected_parts.add(int(pi))
+        if not selected_parts:
+            QMessageBox.warning(self, tr("tt.merge_title"), tr("tt.merge_no_part"))
+            return
+        bar_text = self._bars_input.text().strip()
+        if not bar_text:
+            QMessageBox.warning(self, tr("tt.input_error"), tr("tt.custom_bars_invalid"))
+            return
+        bars = set()
         try:
-            part_idx = self._part_combo.currentData()
-            if part_idx is None:
-                return
-            if part_idx == -1:
-                # All parts — extract notes in score order by offset
-                notes = []
-                if hasattr(self._score, 'parts'):
-                    try:
-                        from music21 import note as _n, chord as _c
-                        raw = []
-                        for part in self._score.parts:
-                            for m in part.getElementsByClass('Measure'):
-                                for el in m.recurse():
-                                    if isinstance(el, _n.Note):
-                                        global_off = m.offset + el.offset
-                                        raw.append((global_off, el.pitch.name, el.pitch.pitchClass))
-                                    elif isinstance(el, _c.Chord):
-                                        global_off = m.offset + el.offset
-                                        top = el.sortAscending()[-1]
-                                        raw.append((global_off, top.pitch.name, top.pitch.pitchClass))
-                        raw.sort(key=lambda x: x[0])
-                        for _, name, pc in raw[:12]:
-                            notes.append((name, pc))
-                    except Exception as e:
-                        QMessageBox.critical(self, tr("tt.extract_failed"), f"Offset extraction error: {e}\n{__import__('traceback').format_exc()}")
-                        notes = []
-                if not notes:
-                    # Fallback: sequential
-                    for part in self._score.parts:
-                        notes.extend(extract_first_n_notes(part, 12))
-            elif hasattr(self._score, 'parts'):
-                notes = extract_first_n_notes(self._score.parts[part_idx], 12)
-            else:
-                notes = extract_first_n_notes(self._score, 12)
+            for token in bar_text.split(","):
+                token = token.strip()
+                if not token:
+                    continue
+                if "-" in token:
+                    a_s, b_s = token.split("-", 1)
+                    a, b = int(a_s), int(b_s)
+                    if a > b:
+                        a, b = b, a
+                    bars.update(range(a, b + 1))
+                else:
+                    bars.add(int(token))
+        except ValueError:
+            QMessageBox.warning(self, tr("tt.input_error"), tr("tt.custom_bars_invalid"))
+            return
+        try:
+            from music21 import note as _n, chord as _c
+            raw = []
+            for pi, part in enumerate(self._score.parts):
+                if pi not in selected_parts:
+                    continue
+                for m in part.getElementsByClass('Measure'):
+                    if m.number not in bars:
+                        continue
+                    for el in m.recurse():
+                        if isinstance(el, _n.Note):
+                            raw.append((m.number, m.offset + el.offset, pi,
+                                        el.pitch.name, el.pitch.pitchClass))
+                        elif isinstance(el, _c.Chord):
+                            top = el.sortAscending()[-1]
+                            raw.append((m.number, m.offset + el.offset, pi,
+                                        top.pitch.name, top.pitch.pitchClass))
 
-            notes = notes[:12]
+            raw.sort(key=lambda x: (x[2], x[0], x[1]))
+            seen_pcs = set()
+            notes = []
+            for _, _, _, name, pc in raw:
+                if pc in seen_pcs:
+                    continue
+                seen_pcs.add(pc)
+                notes.append((name, pc))
+                if len(notes) == 12:
+                    break
+            if not notes:
+                QMessageBox.warning(self, tr("tt.extract_failed"), tr("tt.merge_no_notes"))
+                return
+            if len(notes) < 12:
+                QMessageBox.warning(self, tr("tt.extract_failed"),
+                                    tr("tt.not_enough_unique", count=len(notes)))
+                return
             display = ", ".join([f"{name}({pc})" for name, pc in notes])
             self._extracted_label.setText(f"Extracted: {display}")
             self._row = [pc for _, pc in notes]
@@ -1023,40 +1063,10 @@ class TwelveToneTab(QWidget):
         for label, row_data in forms.items():
             text += f"{label} = {row_data}\n"
         self._forms_text.setText(text)
-        # Heatmap — auto-popup in standalone window; prompt save on close
+        # Heatmap — auto-popup in standalone window
         import matplotlib.pyplot as _plt
         _plt.close('all')
         self._matrix_widget.show_matrix(self._row, block=False)
-
-        # Detect when heatmap window is closed → prompt save
-        _fig_num = getattr(self._matrix_widget, '_heatmap_num', None)
-
-        def _check_close():
-            if _fig_num is None or not _plt.fignum_exists(_fig_num):
-                self._heatmap_timer.stop()
-                ans = QMessageBox.question(
-                    self, tr("tt.matrix_group"),
-                    tr("tt.heatmap_save_prompt"),
-                    QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes,
-                )
-                if ans == QMessageBox.Yes:
-                    path, _ = QFileDialog.getSaveFileName(
-                        self, tr("tt.export_matrix"),
-                        temp_default_path("12_tone_matrix_heatmap.png"),
-                        "PNG (*.png);;All Files (*)",
-                    )
-                    if path:
-                        self._matrix_widget.fig.savefig(path, dpi=300)
-                        QMessageBox.information(
-                            self, tr("tt.matrix_group"),
-                            tr("tt.matrix_exported", path=path),
-                        )
-                _plt.close('all')
-
-        from PyQt5.QtCore import QTimer
-        self._heatmap_timer = QTimer(self)
-        self._heatmap_timer.timeout.connect(_check_close)
-        self._heatmap_timer.start(300)
 
         # Numeric matrix — uses generate_matrix (preserves original P row order)
         matrix = generate_matrix(self._row)

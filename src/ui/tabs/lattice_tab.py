@@ -37,6 +37,8 @@ class LatticeTab(QWidget):
         self._main_window = main_window
         self._chord_entries = []
         self._lattice_bar_info = {}  # tuple(sorted(pcs)) -> bar_str
+        self._lattice_node_info = {}  # tuple(sorted(pcs)) -> source label
+        self._lattice_node_full_info = {}  # tuple(sorted(pcs)) -> [(pcs_label, forte, source)]
         self._current_fig_data = None
         self._setup_ui()
 
@@ -72,7 +74,7 @@ class LatticeTab(QWidget):
         ctrl_layout.addWidget(QLabel(tr("lattice.max_size")))
         self._spin_max = QSpinBox()
         self._spin_max.setMinimum(1)
-        self._spin_max.setMaximum(11)
+        self._spin_max.setMaximum(12)
         self._spin_max.setValue(6)
         self._spin_max.setToolTip(tr("lattice.range_hint"))
         ctrl_layout.addWidget(self._spin_max)
@@ -146,6 +148,13 @@ class LatticeTab(QWidget):
         self._btn_save.setEnabled(False)
         self._btn_save.clicked.connect(self._on_save)
         quick_row.addWidget(self._btn_save)
+
+        self._btn_temporal_network = QPushButton(tr("lattice.btn_temporal_network"))
+        self._btn_temporal_network.setEnabled(False)
+        self._btn_temporal_network.setToolTip(tr("lattice.btn_temporal_network_hint"))
+        self._btn_temporal_network.clicked.connect(self._on_temporal_network)
+        quick_row.addWidget(self._btn_temporal_network)
+
         quick_row.addStretch()
         layout.addLayout(quick_row)
 
@@ -165,9 +174,12 @@ class LatticeTab(QWidget):
         self._collections_edit.clear()
         self._chord_entries = []
         self._lattice_bar_info = {}  # tuple(sorted(pcs)) -> bar_str
+        self._lattice_node_info = {}  # tuple(sorted(pcs)) -> source label
+        self._lattice_node_full_info = {}  # tuple(sorted(pcs)) -> [(pcs_label, forte, source)]
         self._chord_combo.clear()
         self._chord_combo.setEnabled(False)
         self._btn_chord_relations.setEnabled(False)
+        self._btn_temporal_network.setEnabled(False)
         self._btn_save.setEnabled(False)
         self._canvas.clear()
         self._canvas.draw()
@@ -182,9 +194,17 @@ class LatticeTab(QWidget):
         if not text:
             QMessageBox.warning(self, tr("lattice.input_error"), tr("lattice.no_input"))
             return
-        try:
-            pc_set = list(map(int, text.split()))
-        except ValueError:
+        pc_set = []
+        for p in text.split():
+            try:
+                v = int(p)
+                if 0 <= v <= 11:
+                    pc_set.append(v)
+                else:
+                    break
+            except ValueError:
+                break
+        if len(pc_set) < 2:
             QMessageBox.warning(self, tr("lattice.input_error"), tr("lattice.invalid_input"))
             return
 
@@ -205,7 +225,7 @@ class LatticeTab(QWidget):
 
     # ── Drawing helpers ───────────────────────────────────────────
 
-    def _calc_figure_size(self, G, pos, levels):
+    def _calc_figure_size(self, G, pos, levels, labels=None):
         """Compute readable figure dimensions from the graph layout.
 
         Returns (fig_w_inches, fig_h_inches, node_size_px, font_size_pt).
@@ -222,19 +242,26 @@ class LatticeTab(QWidget):
         aspect = data_w / max(data_h, 0.5)
 
         max_pc_len = max((len(n) for n in G.nodes()), default=3)
+        max_lines = 1
+        max_line_len = max_pc_len
+        if labels:
+            for lb in labels.values():
+                lines = str(lb).splitlines()
+                max_lines = max(max_lines, len(lines))
+                max_line_len = max(max_line_len, max((len(l) for l in lines), default=1))
 
         # Font: shrink as label length grows, but keep readable
-        font_size = max(_MIN_FONT, _MAX_FONT - max(0, max_pc_len - 3) * 1.1)
+        font_size = max(_MIN_FONT, _MAX_FONT - max(0, max_line_len - 3) * 0.7)
 
         # Estimate how many inches we need so labels don't overlap.
         # A single-line label needs ~0.12 inches per character at `font_size` pt.
-        char_w_in = max_pc_len * font_size * 0.01
+        char_w_in = max_line_len * font_size * 0.01
         # Each node column needs at least that much horizontal room
         max_nodes_per_level = max((len(v) for v in levels.values()), default=1)
         num_levels = len(levels)
 
         need_w = max_nodes_per_level * (char_w_in + 0.55) + 0.8   # margins
-        need_h = num_levels * (font_size * 0.025 + 0.45) + 0.8
+        need_h = num_levels * (font_size * 0.025 * max_lines + 0.45 * max_lines) + 0.8
 
         # Match viewport: if the lattice is compact, expand to fill ~85 %
         # of the viewport so it feels spacious instead of tiny.
@@ -250,13 +277,13 @@ class LatticeTab(QWidget):
 
         # Node size: base area + bonus for long labels, minus a small
         # penalty for very dense graphs (so nodes don't completely fill).
-        node_size = max(_MIN_NODE, 1200 + max_pc_len * 480 - max(0, node_count - 12) * 35)
+        node_size = max(_MIN_NODE, 1200 + max_pc_len * 480 + max_lines * 550 - max(0, node_count - 12) * 35)
 
         return fig_w, fig_h, node_size, font_size
 
     def _render_graph(self, G, levels, pos, labels, title, is_chord_relations=False):
         """Draw the graph onto the canvas with colored edges and arrows."""
-        fig_w, fig_h, n_size, f_size = self._calc_figure_size(G, pos, levels)
+        fig_w, fig_h, n_size, f_size = self._calc_figure_size(G, pos, levels, labels=labels)
 
         self._canvas.clear()
         self._canvas.set_size_inches(fig_w, fig_h)
@@ -367,6 +394,8 @@ class LatticeTab(QWidget):
             return
 
         results = chord_tab._results
+        self._lattice_node_info = {}
+        self._lattice_node_full_info = {}
 
         # 1) Merge by bar: union of all parts' pc_sets within the same measure
         bar_sets = {}
@@ -409,12 +438,36 @@ class LatticeTab(QWidget):
             for rw in cd:
                 tt = rw["type"]
                 ps = rw["pcs"]
+                key = tuple(sorted(ps))
+                if tt == "offset_merged":
+                    off = str(rw.get("offset", "")).replace("offset ", "")
+                    src = f"Offset {off}"
+                else:
+                    src = f"Bar {rw['bar']}"
+                self._lattice_node_info.setdefault(key, [])
+                if src not in self._lattice_node_info[key]:
+                    self._lattice_node_info[key].append(src)
+                fc2 = rw.get("forte", chord.Chord(ps).forteClass)
+                pcs_label = " ".join(map(str, ps))
+                if tt == "indiv":
+                    full_src = self._lattice_bar_info.get(
+                        tuple(ps), f"Bar {rw['bar']} ({rw.get('part', '')})"
+                    )
+                elif tt == "part_merged":
+                    full_src = f"Bar {rw['bar']} ({rw.get('part', '')} merged)"
+                elif tt == "bar_merged":
+                    full_src = f"Bar {rw['bar']} (Bar merged)"
+                else:
+                    off = str(rw.get("offset", "")).replace("offset ", "")
+                    full_src = f"Bar {rw['bar']} Offset {off} (Offset merged)"
+                self._lattice_node_full_info.setdefault(key, [])
+                if (pcs_label, fc2, full_src) not in self._lattice_node_full_info[key]:
+                    self._lattice_node_full_info[key].append((pcs_label, fc2, full_src))
                 if tt == "indiv":
                     # Skip single notes in lattice
                     if len(ps) <= 1:
                         continue
                     bar_str = self._lattice_bar_info.get(tuple(ps), f"Bar {rw['bar']} ({rw.get('part','')})")
-                    fc2 = rw.get("forte", chord.Chord(ps).forteClass)
                     self._chord_entries.append(ps)
                     label = f"{' '.join(map(str, ps))}  (size={len(ps)}, {fc2}, {bar_str})"
                     self._chord_combo.addItem(label)
@@ -438,6 +491,7 @@ class LatticeTab(QWidget):
         self._chord_combo.view().setMinimumWidth(max_label_width + 40)
         self._chord_combo.setEnabled(True)
         self._btn_chord_relations.setEnabled(True)
+        self._btn_temporal_network.setEnabled(True)
         # Auto-fill first entry — setCurrentIndex may be a no-op if Qt already
         # tracked index 0 during the blocked addItem phase, so fill explicitly.
         if self._chord_entries:
@@ -455,6 +509,7 @@ class LatticeTab(QWidget):
 
         lines = [l.strip() for l in text.splitlines() if l.strip() and not l.strip().startswith('#')]
         self._chord_entries = []
+        self._lattice_node_full_info = {}
         self._chord_combo.blockSignals(True)
         self._chord_combo.clear()
 
@@ -468,6 +523,11 @@ class LatticeTab(QWidget):
             c = chord.Chord(pcs)
             pc_list = list(c.normalOrder)
             self._chord_entries.append(pc_list)
+            key = tuple(sorted(pc_list))
+            self._lattice_node_full_info.setdefault(key, [])
+            info = (" ".join(map(str, pcs)), c.forteClass, "Manual")
+            if info not in self._lattice_node_full_info[key]:
+                self._lattice_node_full_info[key].append(info)
             label = (f"{' '.join(map(str, pcs))} -> "
                      f"Normal: {c.normalOrder} | "
                      f"Prime: {c.primeFormString} | "
@@ -482,6 +542,7 @@ class LatticeTab(QWidget):
             self._chord_combo.view().setMinimumWidth(max_label_width + 40)
             self._chord_combo.setEnabled(True)
             self._btn_chord_relations.setEnabled(True)
+            self._btn_temporal_network.setEnabled(True)
             # Auto-fill first entry — setCurrentIndex may be a no-op if Qt already
             # tracked index 0 during the blocked addItem phase, so fill explicitly.
             self._chord_combo.setCurrentIndex(-1)
@@ -491,8 +552,8 @@ class LatticeTab(QWidget):
     def _on_chord_combo_changed(self, idx: int):
         if idx < 0 or idx >= len(self._chord_entries):
             return
-        pc_set = self._chord_entries[idx]
-        self._input_edit.setText(" ".join(map(str, pc_set)))
+        full_text = self._chord_combo.itemText(idx)
+        self._input_edit.setText(full_text)
 
     def _on_chord_relations(self):
         """Build an inclusion lattice from the chord analysis sets themselves."""
@@ -504,9 +565,23 @@ class LatticeTab(QWidget):
         min_sz = self._spin_min.value()
         max_sz = self._spin_max.value()
 
+        selected_idx = self._chord_combo.currentIndex()
+        focus = None
+        if 0 <= selected_idx < len(self._chord_entries):
+            focus = tuple(sorted(self._chord_entries[selected_idx]))
+
         filtered = [tuple(sorted(s)) for s in self._chord_entries
                     if min_sz <= len(s) <= max_sz]
         dropped = len(self._chord_entries) - len(filtered)
+        if focus is not None:
+            focus_set = set(focus)
+            filtered = [
+                s for s in filtered
+                if set(s).issubset(focus_set) or focus_set.issubset(set(s))
+            ]
+            # Ensure the focus itself is always included even if size-range filtered out
+            if focus not in filtered:
+                filtered.append(focus)
         if len(filtered) < 2:
             QMessageBox.warning(self, tr("lattice.input_error"),
                                 tr("lattice.not_enough_sets_with_dropped",
@@ -521,10 +596,234 @@ class LatticeTab(QWidget):
         y_gap = 0.6 + max_pc_len * 0.25
         pos = compute_layout(levels, x_gap=x_gap, y_gap=y_gap)
         labels = build_labels(G)
+        for node in G.nodes():
+            src = self._lattice_node_info.get(tuple(sorted(node)))
+            if src:
+                labels[node] = f"{labels[node]}\n{'; '.join(src) if isinstance(src, list) else src}"
 
         title = (f"Chord Relations Lattice ({min_sz}-{max_sz} tones) | "
                  f"{len(G.nodes())} sets, {len(G.edges())} relations")
         self._render_graph(G, levels, pos, labels, title, is_chord_relations=True)
+
+    @staticmethod
+    def _compact_source(src: str) -> str:
+        """Shorten a source label to Bar/Offset only when it is too long."""
+        import re
+        if len(src) <= 20:
+            return src
+        m = re.match(r"(Bars? [0-9]+(?:-[0-9]+)?(?: Offset [0-9.]+)?)", src)
+        if m:
+            return m.group(1)
+        return src[:24]
+
+    def _temporal_node_text(self, node, info_map=None):
+        """One line of full info (PCs, Forte, source) for a tree node."""
+        info_map = info_map if info_map is not None else self._lattice_node_full_info
+        info_list = info_map.get(node)
+        if info_list:
+            pcs_label, forte, _ = info_list[0]
+            srcs = []
+            for _pcs, _forte, src in info_list:
+                compact = self._compact_source(src)
+                if compact not in srcs:
+                    srcs.append(compact)
+            src_line = " | ".join(srcs[:2])
+            return f"{pcs_label} | {forte} | {src_line}"
+        return f"{' '.join(map(str, node))} | {get_forte_class(list(node))}"
+
+    def _build_temporal_tree_text(self, G, info_map=None):
+        """Render the inclusion network as a plain-text horizontal tree."""
+        roots = sorted(
+            [n for n in G.nodes() if G.in_degree(n) == 0],
+            key=lambda n: (-len(n), n),
+        )
+        children_of = {}
+        placed = set(roots)
+
+        def assign(node):
+            children = [
+                s for s in sorted(G.successors(node), key=lambda n: (len(n), n))
+                if s not in placed
+            ]
+            children_of[node] = children
+            for child in children:
+                placed.add(child)
+                assign(child)
+
+        for root in roots:
+            assign(root)
+
+        out = []
+        for i, root in enumerate(roots):
+            if i:
+                out.append("")
+            block, _ = self._render_horizontal_subtree(root, children_of, info_map)
+            out.extend(block)
+        return "\n".join(out)
+
+    def _render_horizontal_subtree(self, node, children_of, info_map=None):
+        """Render one horizontal subtree: node at left, children extend right."""
+        children = children_of.get(node, [])
+        text = self._temporal_node_text(node, info_map)
+        if not children:
+            return [text], 0
+
+        parts = [self._render_horizontal_subtree(c, children_of, info_map)
+                 for c in children]
+        blocks = [block for block, _ in parts]
+        roots = [root for _, root in parts]
+        heights = [len(block) for block in blocks]
+
+        # Connector rows are where each child's own line is placed.
+        c_rows = [0]
+        for i in range(1, len(children)):
+            c_rows.append(c_rows[i - 1] + heights[i - 1] - roots[i - 1])
+        y = [c_rows[i] - roots[i] for i in range(len(children))]
+        min_y = min(y)
+        max_y = max(y[i] + heights[i] - 1 for i in range(len(children)))
+        rows = max_y - min_y + 1
+
+        parent_row = c_rows[0] - min_y
+        lines = [""] * rows
+        for r in range(rows):
+            lines[r] = text if r == parent_row else " " * len(text)
+
+        text_w = len(text)
+        for r in range(rows):
+            abs_r = r + min_y
+            if len(children) == 1:
+                conn = "─── " if abs_r == c_rows[0] else "    "
+                lines[r] = (text if r == parent_row else " " * text_w) + conn
+            elif abs_r == c_rows[0]:
+                lines[r] = text + "──┬── "
+            elif abs_r == c_rows[-1]:
+                lines[r] = " " * (text_w + 2) + "└── "
+            elif abs_r in c_rows:
+                lines[r] = " " * (text_w + 2) + "├── "
+            elif c_rows[0] < abs_r < c_rows[-1]:
+                lines[r] = " " * (text_w + 2) + "│   "
+            else:
+                lines[r] = " " * (text_w + 2) + "    "
+
+        for i, block in enumerate(blocks):
+            start = y[i] - min_y
+            width = max((len(line) for line in block), default=0)
+            for r, line in enumerate(block):
+                lines[start + r] += line.ljust(width)
+
+        return lines, parent_row
+
+    def _show_temporal_network_dialog(self, text, title):
+        """Show the plain-text tree in a scrollable, copyable dialog."""
+        from PyQt5.QtWidgets import (
+            QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton,
+            QApplication,
+        )
+        from PyQt5.QtGui import QFontDatabase
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.resize(860, 620)
+        layout = QVBoxLayout(dlg)
+
+        edit = QTextEdit()
+        edit.setReadOnly(True)
+        edit.setLineWrapMode(QTextEdit.NoWrap)
+        font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        font.setPointSize(11)
+        edit.setFont(font)
+        edit.setPlainText(text)
+        layout.addWidget(edit, 1)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_save_png = QPushButton(tr("lattice.temporal_save_png"))
+        btn_save_png.clicked.connect(lambda: self._save_text_as_png(text))
+        btn_copy = QPushButton(tr("table.copy"))
+        btn_copy.clicked.connect(lambda: QApplication.clipboard().setText(text))
+        btn_close = QPushButton(tr("dialog.close"))
+        btn_close.clicked.connect(dlg.accept)
+        btn_row.addWidget(btn_save_png)
+        btn_row.addWidget(btn_copy)
+        btn_row.addWidget(btn_close)
+        layout.addLayout(btn_row)
+        dlg.exec_()
+
+    def _save_text_as_png(self, text):
+        """Render the plain-text tree into a PNG image."""
+        from PyQt5.QtWidgets import QTextEdit as _TextEdit
+        from PyQt5.QtGui import QImage, QPainter, QFontDatabase
+        from PyQt5.QtCore import QRectF
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, tr("lattice.save_png"),
+            temp_default_path("temporal_inclusion_network.png"),
+            "PNG (*.png);;All Files (*)"
+        )
+        if not path:
+            return
+
+        edit = _TextEdit()
+        font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        font.setPointSize(11)
+        edit.setFont(font)
+        edit.setLineWrapMode(_TextEdit.NoWrap)
+        edit.setPlainText(text)
+        doc = edit.document()
+        size = doc.size()
+        margin = 8
+        w = max(1, int(size.width()) + margin * 2)
+        h = max(1, int(size.height()) + margin * 2)
+        image = QImage(w, h, QImage.Format_ARGB32)
+        image.fill(Qt.white)
+
+        painter = QPainter(image)
+        try:
+            doc.drawContents(painter, QRectF(margin, margin, size.width(), size.height()))
+        finally:
+            painter.end()
+
+        if not image.save(path, "PNG"):
+            QMessageBox.critical(
+                self, tr("lattice.saved"),
+                tr("lattice.save_permission_error", error="PNG save failed")
+            )
+            return
+        QMessageBox.information(self, tr("lattice.saved"),
+                                tr("dialog.saved_to", path=path))
+
+    def _on_temporal_network(self):
+        """Show a temporal inclusion network for the selected extracted set."""
+        if not self._chord_entries:
+            QMessageBox.information(self, tr("lattice.from_row_title"),
+                                    tr("lattice.no_chord_msg"))
+            return
+
+        idx = self._chord_combo.currentIndex()
+        if idx < 0 or idx >= len(self._chord_entries):
+            return
+        focus = tuple(sorted(self._chord_entries[idx]))
+        focus_set = set(focus)
+
+        nodes = {focus}
+        for s in self._chord_entries:
+            ts = tuple(sorted(s))
+            if len(ts) >= 2 and set(ts).issubset(focus_set):
+                nodes.add(ts)
+        for key in self._lattice_node_full_info:
+            if len(key) >= 2 and set(key).issubset(focus_set):
+                nodes.add(key)
+        if len(nodes) < 2:
+            QMessageBox.information(self, tr("lattice.from_row_title"),
+                                    tr("lattice.temporal_no_data"))
+            return
+
+        G, _levels = build_inclusion_graph(list(nodes))
+        tree_text = self._build_temporal_tree_text(G)
+        header = (f"Temporal Inclusion Network | Focus: {self._temporal_node_text(focus)} | "
+                  f"{len(G.nodes())} sets, {len(G.edges())} relations")
+        title = tr("lattice.btn_temporal_network")
+        self._show_temporal_network_dialog(header + "\n\n" + tree_text, title)
 
     def _on_save(self):
         if self._canvas is None or self._canvas.fig is None:
@@ -570,6 +869,8 @@ class LatticeTab(QWidget):
         self._chord_combo.clear()
         self._chord_combo.blockSignals(False)
         self._collections_edit.clear()
+        self._lattice_node_info = {}
+        self._lattice_node_full_info = {}
         bar_detail = OrderedDict()
         for pn in data:
             for bn in data[pn]:
@@ -641,26 +942,50 @@ class LatticeTab(QWidget):
                     out.append(f"# Constituents: [{_s}]({_item['part_name']})")
                     out.append(_s)
                     self._chord_entries.append(_item["pcs"])
+                    fkey = tuple(sorted(_item["pcs"]))
+                    self._lattice_node_full_info.setdefault(fkey, [])
+                    finfo = (_s, _item["forte"], f"Bars {_item['bar_start']}-{_item['bar_end']} ({_item['part_name']} merged)")
+                    if finfo not in self._lattice_node_full_info[fkey]:
+                        self._lattice_node_full_info[fkey].append(finfo)
                     self._chord_combo.addItem(f"[Part Merge] {_item['part_name']}: [{_s}] ({_item['forte']})")
                 elif 'offset' in _item:
                     out.append(f"# [Offset Merge] Bar {_item['bar']} offset {_item['offset']}: [{pc_key}] Forte: {_item['forte']} ({_item['offset_pcs']})")
                     out.append(pc_key)
                     self._chord_entries.append(_item["pcs"])
+                    fkey = tuple(sorted(_item["pcs"]))
+                    self._lattice_node_full_info.setdefault(fkey, [])
+                    finfo = (pc_key, _item["forte"], f"Bar {_item['bar']} Offset {_item['offset']} (Offset merged)")
+                    if finfo not in self._lattice_node_full_info[fkey]:
+                        self._lattice_node_full_info[fkey].append(finfo)
                     self._chord_combo.addItem(f"[Offset Merge] {_item['bar']} offset {_item['offset']}: [{pc_key}] ({_item.get('offset_pcs','')})")
                 elif 'parts' in _item:
                     _s = " ".join(map(str, _item.get('orig_seq', _item["pcs"])))
                     out.append(f"# [Bar Merge] Bar {_item['bar']}: [{_s}] Forte: {_item['forte']} ({_item.get('parts','')})")
                     out.append(pc_key)
                     self._chord_entries.append(_item["pcs"])
+                    fkey = tuple(sorted(_item["pcs"]))
+                    self._lattice_node_full_info.setdefault(fkey, [])
+                    finfo = (_s, _item["forte"], f"Bar {_item['bar']} (Bar merged)")
+                    if finfo not in self._lattice_node_full_info[fkey]:
+                        self._lattice_node_full_info[fkey].append(finfo)
                     self._chord_combo.addItem(f"[Bar Merge] {_item['bar']}: [{_s}] ({_item.get('parts','')})")
                 else:
                     _s = " ".join(map(str, _item.get('orig_pcs', _item["pcs"])))
                     out.append(f"# [Chord] Bar {_item['bar']}: [{_s}] Forte: {_item['forte']} ({_item.get('part','')})")
                     out.append(pc_key)
                     self._chord_entries.append(_item["pcs"])
+                    fkey = tuple(sorted(_item["pcs"]))
+                    self._lattice_node_full_info.setdefault(fkey, [])
+                    finfo = (_s, _item["forte"], f"Bar {_item['bar']} ({_item.get('part','')})")
+                    if finfo not in self._lattice_node_full_info[fkey]:
+                        self._lattice_node_full_info[fkey].append(finfo)
                     self._chord_combo.addItem(f"[Chord] {_item['bar']}: [{_s}] ({_item.get('part','')})")
             self._chord_combo.blockSignals(False)
             self._chord_combo.setEnabled(True)
+            if self._chord_entries:
+                self._chord_combo.setCurrentIndex(-1)
+                self._chord_combo.setCurrentIndex(0)
             self._btn_chord_relations.setEnabled(True)
+            self._btn_temporal_network.setEnabled(True)
             self._btn_save.setEnabled(True)
             self._collections_edit.setText("\n".join(out))

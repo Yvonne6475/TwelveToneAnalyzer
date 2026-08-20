@@ -13,8 +13,8 @@ NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F',
 class MatrixWidget(QWidget):
     """Placeholder; show_matrix() opens a standalone matplotlib window.
 
-    When the user closes the heatmap window, a save prompt appears
-    asking if they want to export the figure as PNG.
+    Closing the heatmap window does not prompt for saving; use the
+    Export Heatmap button in the tab to save the figure as PNG.
     """
 
     def __init__(self, parent=None):
@@ -78,33 +78,8 @@ class MatrixWidget(QWidget):
         plt.tight_layout()
 
         if block:
-            # Blocking mode: show, then prompt save on close
-            self._heatmap_save_prompted = False
-
-            def _on_fig_close(event):
-                self._heatmap_save_prompted = True
-
-            fig.canvas.mpl_connect('close_event', _on_fig_close)
+            # Blocking mode: just show until the window is closed.
             plt.show()
-
-            if self._heatmap_save_prompted:
-                from PyQt5.QtWidgets import QMessageBox, QFileDialog
-                from src.utils.i18n import tr
-                from src.utils.config import temp_default_path
-                reply = QMessageBox.question(
-                    self, tr("tt.matrix_group"),
-                    tr("tt.heatmap_save_prompt"),
-                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
-                )
-                if reply == QMessageBox.Yes:
-                    path, _ = QFileDialog.getSaveFileName(
-                        self, tr("tt.export_matrix"),
-                        temp_default_path("12_tone_matrix_heatmap.png"),
-                        "PNG (*.png);;All Files (*)",
-                    )
-                    if path:
-                        fig.savefig(path, dpi=300)
         else:
-            # Non-blocking: return figure number for caller to poll
-            self._heatmap_num = _num
+            # Non-blocking: keep the window open and return immediately.
             plt.show(block=False)

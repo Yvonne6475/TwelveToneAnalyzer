@@ -23,28 +23,47 @@ def generate_all_subsets(pc_set: list[int], min_size: int = 3, max_size: int = 6
 def build_inclusion_graph(subsets: list[tuple]):
     """Build a NetworkX directed graph from subsets with inclusion (superset→subset) edges.
 
-    Only compares subsets of adjacent sizes (k vs k+1) to avoid O(n²) blowup.
+    Edges are drawn between a superset and its subset whenever no other
+    selected set sits between them, even when their sizes differ by more
+    than one (e.g. an 11-note set directly above a 4-note subset).
     """
     import networkx as nx
 
     G = nx.DiGraph()
-    for s in subsets:
+    nodes = sorted(set(subsets))
+    for s in nodes:
         G.add_node(s)
 
-    # Group by size; only edges between adjacent levels are possible
+    # Group by size so only larger sets are considered as supersets.
     by_size = {}
-    for s in subsets:
+    for s in nodes:
         by_size.setdefault(len(s), []).append(s)
 
-    # Pre-compute sets once
-    set_cache = {s: set(s) for s in subsets}
+    set_cache = {s: set(s) for s in nodes}
+    max_size = max(by_size) if by_size else 0
 
-    for size in sorted(by_size):
-        for small in by_size.get(size, []):
-            small_set = set_cache[small]
-            for large in by_size.get(size + 1, []):
+    for small in nodes:
+        small_set = set_cache[small]
+        candidates = []
+        for size in range(len(small) + 1, max_size + 1):
+            for large in by_size.get(size, []):
                 if small_set.issubset(set_cache[large]):
-                    G.add_edge(large, small)
+                    candidates.append(large)
+
+        # Keep only minimal supersets: if another selected superset already
+        # lies between them, the larger edge is transitive and not drawn.
+        candidates.sort(key=lambda s: (len(s), s))
+        direct = []
+        for large in candidates:
+            large_set = set_cache[large]
+            if any(
+                small_set.issubset(set_cache[mid])
+                and set_cache[mid].issubset(large_set)
+                for mid in direct
+            ):
+                continue
+            direct.append(large)
+            G.add_edge(large, small)
 
     levels = {}
     for node in G.nodes():
