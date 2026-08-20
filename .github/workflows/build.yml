@@ -153,7 +153,6 @@ jobs:
           VER="${{ steps.ver.outputs.version }}"
           cd dist
           zip -r "TMA_Launcher_macOS_v${VER}.zip" "TMA Launcher.app"
-          mv "TMA_Launcher_macOS_v${VER}.zip" .
 
       - uses: actions/upload-artifact@v4
         with:
