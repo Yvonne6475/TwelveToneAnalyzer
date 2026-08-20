@@ -176,7 +176,7 @@ if __name__ == "__main__":
     layout.setSpacing(12)
 
     label_widget = QLabel("Checking for updates...")
-    label_widget.setFont(QFont("Helvetica Neue", 16, QFont.Bold))
+    label_widget.setFont(QFont("Segoe UI" if sys.platform == "win32" else "Helvetica Neue", 16, QFont.Bold))
     label_widget.setAlignment(Qt.AlignCenter)
     layout.addWidget(label_widget)
 
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
     status_widget = QTextEdit()
     status_widget.setReadOnly(True)
-    status_widget.setFont(QFont("Menlo", 11))
+    status_widget.setFont(QFont("Consolas" if sys.platform == "win32" else "Menlo", 11))
     status_widget.setMaximumHeight(180)
     status_widget.setStyleSheet("QTextEdit { background: transparent; border: none; }")
     layout.addWidget(status_widget)
