@@ -6,6 +6,7 @@ Cross-platform launcher: git-clone on first run, git-pull incremental updates, t
 import os, sys, subprocess, shutil, threading
 from pathlib import Path
 
+from PyQt5.QtCore import pyqtSignal, QObject
 REPO_URL = "https://github.com/Yvonne6475/TwelveToneAnalyzer.git"
 REPO_BRANCH = "master"
 BASE_DIR = Path.home() / ".twelve_tone_analyzer"
