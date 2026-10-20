@@ -6,7 +6,8 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = []
 binaries = []
-hiddenimports = ['matplotlib.backends.backend_qt5agg', 'PyQt5.sip', 'matplotlib.pyplot',
+hiddenimports = ['matplotlib.backends.backend_qt5agg', 'matplotlib.backends.backend_tkagg',
+             'tkinter', '_tkinter', 'PyQt5.sip', 'matplotlib.pyplot',
     'numpy.core._multiarray_umath', 'numpy.core.multiarray',
     # music21 format parsers
     'music21.mei', 'music21.mei.base', 'music21.mei.translate',

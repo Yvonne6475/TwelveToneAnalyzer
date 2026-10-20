@@ -34,6 +34,10 @@ hiddenimports = [
     # matplotlib
     'matplotlib',
     'matplotlib.backends.backend_qt5agg',
+    # Tkinter backend needed by sets_scape.py
+    'matplotlib.backends.backend_tkagg',
+    'tkinter',
+    '_tkinter',
     'matplotlib.pyplot',
     # numpy / scipy
     'numpy',
