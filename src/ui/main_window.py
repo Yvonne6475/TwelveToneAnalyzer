@@ -316,31 +316,28 @@ class MainWindow(QMainWindow):
             self.set_audio_file(path)
 
     def _on_launch_setscape(self):
-        """Launch sets_scape.py in a separate Python process so its Tkinter/
-        matplotlib window does not interfere with the PyQt main loop."""
+        """Launch sets_scape.py in a separate process so its Tkinter/
+        matplotlib window does not interfere with the PyQt main loop.
+
+        Uses the --setscape flag on the entry point binary so that the
+        frozen Python environment (sys._MEIPASS, bundled packages, etc.)
+        is properly initialized before sets_scape.py runs.
+        """
         import subprocess
         import sys
 
-        # In frozen builds, sys._MEIPASS points to the extracted bundle root.
-        # In dev mode, fall back to the repo root relative to this file.
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            base = sys._MEIPASS
-        else:
-            base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        script = os.path.join(base, "sets_scape.py")
-        if not os.path.isfile(script):
-            QMessageBox.warning(self, tr("app.title"),
-                                f"sets_scape.py not found at:\n{script}")
-            return
-
-        cmd = [sys.executable, script]
         score_path = self._score_path if self._score_path else ""
+        if getattr(sys, 'frozen', False):
+            args = [sys.executable, "--setscape"]
+        else:
+            base = os.path.dirname(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__))))
+            args = [sys.executable, os.path.join(base, "main.py"), "--setscape"]
         if score_path:
-            # Pass current score so the explorer starts with it
-            cmd.append(score_path)
+            args.append(score_path)
 
         try:
-            subprocess.Popen(cmd)
+            subprocess.Popen(args)
         except Exception as e:
             QMessageBox.warning(self, tr("app.title"),
                                 f"Could not launch Setscape: {e}")

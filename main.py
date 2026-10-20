@@ -157,6 +157,27 @@ def _exception_hook(exctype, value, tb):
 
 
 def main():
+    # ── --setscape mode ────────────────────────────────────────────
+    if "--setscape" in sys.argv:
+        """Strip the flag and exec sets_scape.py in-process via runpy.
+        sets_scape.py sets TkAgg backend and opens a Tkinter window,
+        which is a separate GUI framework from PyQt5. This is safe as
+        long as the Tkinter GUI *replaces* rather than embeds in PyQt.
+        """
+        import runpy
+        # os already imported at top of file
+        sys.argv = [a for a in sys.argv if a != "--setscape"]
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            _script = os.path.join(sys._MEIPASS, "sets_scape.py")
+        else:
+            _script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    "sets_scape.py")
+        if not os.path.isfile(_script):
+            print("sets_scape.py not found at:", _script)
+            sys.exit(1)
+        runpy.run_path(_script, run_name="__main__")
+        sys.exit(0)
+
     # Install global exception hook early for packaged EXE crash visibility
     sys.excepthook = _exception_hook
 
