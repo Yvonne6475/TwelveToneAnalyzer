@@ -100,7 +100,7 @@ a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=binaries,
-    datas=datas + [('resources/', 'resources'), ('assets/', 'assets')],
+    datas=datas + [('resources/', 'resources'), ('assets/', 'assets'), ('sets_scape.py', '.')],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

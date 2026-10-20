@@ -321,8 +321,13 @@ class MainWindow(QMainWindow):
         import subprocess
         import sys
 
-        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        script = os.path.join(repo_root, "sets_scape.py")
+        # In frozen builds, sys._MEIPASS points to the extracted bundle root.
+        # In dev mode, fall back to the repo root relative to this file.
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            base = sys._MEIPASS
+        else:
+            base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        script = os.path.join(base, "sets_scape.py")
         if not os.path.isfile(script):
             QMessageBox.warning(self, tr("app.title"),
                                 f"sets_scape.py not found at:\n{script}")
