@@ -102,6 +102,13 @@ class MainWindow(QMainWindow):
         act_en.triggered.connect(lambda: self._on_switch_language("en"))
         lang_menu.addAction(act_en)
 
+        # Tools menu
+        tools_menu = mb.addMenu(tr("menu.tools"))
+        act_setscape = QAction(tr("menu.tools.setscape"), self)
+        act_setscape.setStatusTip(tr("menu.tools.setscape_hint"))
+        act_setscape.triggered.connect(self._on_launch_setscape)
+        tools_menu.addAction(act_setscape)
+
         # Export menu
         export_menu = mb.addMenu(tr("menu.export"))
         act_export_report = QAction(tr("menu.export.report"), self)
@@ -307,6 +314,31 @@ class MainWindow(QMainWindow):
         )
         if path:
             self.set_audio_file(path)
+
+    def _on_launch_setscape(self):
+        """Launch sets_scape.py in a separate Python process so its Tkinter/
+        matplotlib window does not interfere with the PyQt main loop."""
+        import subprocess
+        import sys
+
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        script = os.path.join(repo_root, "sets_scape.py")
+        if not os.path.isfile(script):
+            QMessageBox.warning(self, tr("app.title"),
+                                f"sets_scape.py not found at:\n{script}")
+            return
+
+        cmd = [sys.executable, script]
+        score_path = self._score_path if self._score_path else ""
+        if score_path:
+            # Pass current score so the explorer starts with it
+            cmd.append(score_path)
+
+        try:
+            subprocess.Popen(cmd)
+        except Exception as e:
+            QMessageBox.warning(self, tr("app.title"),
+                                f"Could not launch Setscape: {e}")
 
     def _on_settings(self):
         old_font_size = get_font_size()

@@ -32,7 +32,7 @@ class ForteNameTab(QWidget):
         layout.addWidget(QLabel(tr("forte.input_label")))
         self._input_edit = QTextEdit()
         self._input_edit.setPlaceholderText(
-            "6 8 11 1 4\n7 10 0 3 5\n2 5 7 9 0\n7 9 0\n..."
+            "0 2 4 7 9\n6 8 11 1 4\n6-33A\n4-Z15\n..."
         )
         self._input_edit.setMinimumHeight(100)
         self._input_edit.setLineWrapMode(QTextEdit.NoWrap)
@@ -128,10 +128,22 @@ class ForteNameTab(QWidget):
         self._results = []
 
         for bar_info_line, line in parsed:
-            try:
-                pcs = list(map(int, line.split()))
-            except ValueError:
-                continue
+            # Support Forte class names like 6-33A, 3-1, 12-1, 6-33B, etc.
+            line_stripped = line.strip()
+            import re as _re
+            forte_match = _re.match(r'^(\d{1,2}-Z?\d{1,3}[AB]?)$', line_stripped)
+            if forte_match:
+                try:
+                    from music21.chord import fromForteClass
+                    c_forte = fromForteClass(forte_match.group(1))
+                    pcs = list(c_forte.pitchClasses)
+                except Exception:
+                    pcs = []
+            else:
+                try:
+                    pcs = list(map(int, line.split()))
+                except ValueError:
+                    continue
             if not pcs:
                 continue
             full_comment = ""

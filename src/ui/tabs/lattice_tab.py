@@ -60,7 +60,7 @@ class LatticeTab(QWidget):
 
         ctrl_layout.addWidget(QLabel(tr("lattice.input_label")))
         self._input_edit = QLineEdit()
-        self._input_edit.setPlaceholderText("0 2 4 7 9  (e.g. C D E G A)")
+        self._input_edit.setPlaceholderText("0 2 4 7 9 or 6-33A")
         ctrl_layout.addWidget(self._input_edit, 1)
 
         ctrl_layout.addWidget(QLabel(tr("lattice.min_size")))
@@ -92,7 +92,7 @@ class LatticeTab(QWidget):
         coll_group = QGroupBox(tr("lattice.collections_group"))
         coll_layout = QVBoxLayout(coll_group)
         self._collections_edit = QTextEdit()
-        self._collections_edit.setPlaceholderText(tr("lattice.collections_placeholder"))
+        self._collections_edit.setPlaceholderText("0 2 4 7 9\n6-33A\n...")
         self._collections_edit.setMaximumHeight(60)
         self._collections_edit.setMinimumHeight(40)
         coll_layout.addWidget(self._collections_edit)
@@ -194,16 +194,21 @@ class LatticeTab(QWidget):
         if not text:
             QMessageBox.warning(self, tr("lattice.input_error"), tr("lattice.no_input"))
             return
-        pc_set = []
-        for p in text.split():
-            try:
-                v = int(p)
-                if 0 <= v <= 11:
-                    pc_set.append(v)
-                else:
-                    break
-            except ValueError:
-                break
+        # Support Forte class names like 6-33A, 3-1, 4-Z15
+        import re as _re
+        _fm = _re.match(r'^(\d{1,2}-Z?\d{1,3}[AB]?)$', text)
+        if _fm:
+            from music21.chord import fromForteClass
+            pc_set = list(fromForteClass(_fm.group(1)).pitchClasses)
+        else:
+            pc_set = []
+            for p in text.replace(',', ' ').split():
+                try:
+                    v = int(p)
+                    if 0 <= v <= 11:
+                        pc_set.append(v)
+                except ValueError:
+                    pass  # skip non-numeric tokens (labels, arrows, etc.)
         if len(pc_set) < 2:
             QMessageBox.warning(self, tr("lattice.input_error"), tr("lattice.invalid_input"))
             return
@@ -513,11 +518,18 @@ class LatticeTab(QWidget):
         self._chord_combo.blockSignals(True)
         self._chord_combo.clear()
 
+        import re as _re_coll
         for line in lines:
-            try:
-                pcs = list(map(int, line.split()))
-            except ValueError:
-                continue
+            # Support Forte class names like 6-33A, 3-1, 4-Z15
+            _fm_coll = _re_coll.match(r'^(\d{1,2}-Z?\d{1,3}[AB]?)$', line.strip())
+            if _fm_coll:
+                from music21.chord import fromForteClass
+                pcs = list(fromForteClass(_fm_coll.group(1)).pitchClasses)
+            else:
+                try:
+                    pcs = list(map(int, line.split()))
+                except ValueError:
+                    continue
             if not pcs:
                 continue
             c = chord.Chord(pcs)
@@ -554,6 +566,8 @@ class LatticeTab(QWidget):
             return
         full_text = self._chord_combo.itemText(idx)
         self._input_edit.setText(full_text)
+        # Auto-generate lattice after combo selection
+        self._on_generate()
 
     def _on_chord_relations(self):
         """Build an inclusion lattice from the chord analysis sets themselves."""

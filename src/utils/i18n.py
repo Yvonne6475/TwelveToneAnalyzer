@@ -31,6 +31,8 @@ TRANSLATIONS = {
     # Menu - Help
     "menu.tools": {"zh": "工具(&T)", "en": "&Tools"},
     "menu.tools.forte_name": {"zh": "Forte 音级集合分析...", "en": "Forte Set-Class Analysis..."},
+    "menu.tools.setscape": {"zh": "Setscape 探索器...", "en": "Setscape Explorer..."},
+    "menu.tools.setscape_hint": {"zh": "在独立窗口打开交互式 Setscape 图", "en": "Open interactive Setscape in a separate window"},
     "menu.help": {"zh": "帮助(&H)", "en": "&Help"},
     "menu.help.about": {"zh": "关于...", "en": "About..."},
 
