@@ -1,8 +1,8 @@
 import os
 import tempfile
 import zipfile
-import hashlib
 import colorsys
+import re
 # 强制指定使用 Tkinter 交互后端，确保能够弹出交互式窗口
 # (Only when running standalone; when imported from the PyQt app the
 #  main process already chooses its own backend.)
@@ -41,7 +41,8 @@ env["directoryScratch"] = temp_dir
 def generate_high_contrast_palette(num_colors=256):
     """
     Generate a high-contrast palette using golden ratio hue distribution.
-    Ensures adjacent indices have maximum visual contrast.
+    Fixed saturation and lightness so every consecutive index has a
+    perceptibly different hue (golden ratio advances hue ~222° per step).
     """
     colors = [[1.0, 1.0, 1.0, 1.0]]  # Index 0 is reserved for background (white)
     golden_ratio_conjugate = 0.618033988749895
@@ -49,8 +50,8 @@ def generate_high_contrast_palette(num_colors=256):
 
     for i in range(1, num_colors):
         h = (h + golden_ratio_conjugate) % 1.0
-        s = 0.85 if (i % 2 == 0) else 0.65
-        l = 0.45 if (i % 3 == 0) else (0.60 if i % 3 == 1 else 0.35)
+        s = 0.80  # fixed saturation
+        l = 0.52  # fixed lightness
 
         r, g, b = colorsys.hls_to_rgb(h, l, s)
         colors.append([r, g, b, 1.0])
@@ -301,6 +302,17 @@ class InteractiveDynamicSetExplorer:
         self.ends_arr = np.array(ends_list)
         self.pcs_arr = pcs_list
 
+        # Flat PC arrays: one row per pitch-class for fast numpy masking
+        _fs, _fe, _fp = [], [], []
+        for i, pc_tuple in enumerate(pcs_list):
+            s = starts_list[i]
+            e = ends_list[i]
+            for pc in pc_tuple:
+                _fs.append(s); _fe.append(e); _fp.append(pc)
+        self._flat_starts = np.array(_fs, dtype=np.float64)
+        self._flat_ends   = np.array(_fe, dtype=np.float64)
+        self._flat_pcs    = np.array(_fp, dtype=np.int32)
+
         if self.piano_roll_notes:
             all_midis = [n[2] for n in self.piano_roll_notes]
             self.min_midi = max(21, min(all_midis) - 2)
@@ -317,7 +329,9 @@ class InteractiveDynamicSetExplorer:
         self.selected_offset_idx = 0
         self.selected_scale_idx = 0
         self.cardinality_mask = set(range(1, 13))
+        self._forte_cache = {}
         self.pcs_cache = {}
+        self._forte_cache = {}
 
         self.custom_2d_selection = None
         self._pan_step_active = False
@@ -361,11 +375,50 @@ class InteractiveDynamicSetExplorer:
         return pcs_tuple, self.pcs_cache[cache_key]
 
     def _get_forte_color_index(self, forte_name):
+        # Structure-aware color mapping: structurally similar Forte sets
+        # (same cardinality, close index) get similar hues, so e.g. 3-11
+        # and 3-12 appear in the same color region.
+        # We compute a target hue from the Forte name semantics, then find
+        # the palette entry whose hue is closest (palette uses golden-ratio
+        # spacing, so index != hue — we match by hue, not by index).
         if not forte_name or forte_name in ["Empty", "N/A"]:
             return 0
-        hash_val = int(hashlib.md5(forte_name.encode('utf-8')).hexdigest(), 16)
-        index = (hash_val % (len(self.palette) - 1)) + 1
-        return index
+        if not hasattr(self, '_forte_color_map'):
+            self._forte_color_map = {}
+            # Precompute palette hues for nearest-hue lookup
+            max_p = len(self.palette) - 1
+            self._palette_hues = [(0.1 + 0.618033988749895 * i) % 1.0 for i in range(max_p + 1)]
+        idx = self._forte_color_map.get(forte_name)
+        if idx is not None:
+            return idx
+        # Parse Forte name: e.g. "3-11", "3-11A", "12-1", "5-35B"
+        m = re.match(r'(\d+)-(\d+)', forte_name)
+        if m:
+            cardinality = int(m.group(1))
+            set_idx = int(m.group(2))
+            # Maximum index per cardinality (Forte catalogue sizes)
+            max_for_card = {1:1, 2:3, 3:12, 4:29, 5:38, 6:50, 7:38, 8:29, 9:12, 10:3, 11:1, 12:1}
+            cmax = max_for_card.get(cardinality, 50)
+            # Hue: cardinality creates 12 broad bands; index fine-tunes within band.
+            # Same cardinality → same hue band. Close index → close offset.
+            hue_pos = ((cardinality - 1) / 12.0 +
+                       (set_idx - 1) / (12.0 * cmax * 1.5))
+            hue_pos = hue_pos % 1.0
+        else:
+            hue_pos = (hash(forte_name) % 1000) / 1000.0
+        # Find palette index with closest hue
+        max_p = len(self.palette) - 1
+        target = hue_pos
+        best_i = 1
+        best_dist = 1.0
+        hues = self._palette_hues
+        for i in range(1, max_p + 1):
+            d = min(abs(hues[i] - target), 1.0 - abs(hues[i] - target))
+            if d < best_dist:
+                best_dist = d
+                best_i = i
+        self._forte_color_map[forte_name] = best_i
+        return best_i
 
     def _recompute_data_grid(self):
         event_boundaries = sorted(list(set(self.starts_arr).union(set(self.ends_arr))))
@@ -381,36 +434,73 @@ class InteractiveDynamicSetExplorer:
         self.scales = np.arange(self.offset_step, self.max_scale_offset + self.offset_step, self.offset_step)
         self.num_scales = len(self.scales)
 
-        self.data_grid = {}
-        for s_idx, scale_offset in enumerate(self.scales):
-            for o_idx in range(self.num_points):
-                start_offset = self.offset_boundaries[o_idx]
-                end_offset = start_offset + scale_offset
+        # Pre-sort flat arrays by start time for searchsorted
+        _fs = self._flat_starts
+        _fe = self._flat_ends
+        _fp = self._flat_pcs
+        _sort_idx = np.argsort(_fs, kind='stable')
+        _fs_sorted = _fs[_sort_idx]
+        _fe_sorted = _fe[_sort_idx]
+        _fp_sorted = _fp[_sort_idx]
+        _n_flat = len(_fs_sorted)
 
-                mask = (self.starts_arr < end_offset) & (self.ends_arr > start_offset)
-                pcs_sequence = []
-                for idx in np.where(mask)[0]:
-                    pcs_sequence.extend(self.pcs_arr[idx])
-                pcs_tuple, info = self._get_set_info(pcs_sequence)
+        self.data_grid = {}
+        scales_arr = self.scales  # shape (S,)
+        ob = self.offset_boundaries  # shape (N+1,)
+
+        # Pre-compute all end_offsets for each (o_idx, s_idx) efficiently.
+        # For each start_offset, we can compute all end_offsets at once.
+        for o_idx in range(self.num_points):
+            start_offset = ob[o_idx]
+            end_offsets = start_offset + scales_arr  # shape (S,)
+
+            # One searchsorted call per offset: find insertion points for all scales
+            i_ends = np.searchsorted(_fs_sorted, end_offsets, side='left')
+
+            for s_idx, (i_end, scale_offset) in enumerate(zip(i_ends, scales_arr)):
+                if i_end == 0:
+                    self.data_grid[(s_idx, o_idx)] = {
+                        "pcs": [], "card": 0,
+                        "start_offset": start_offset,
+                        "end_offset": min(self.total_length, start_offset + scale_offset)
+                    }
+                    continue
+
+                # Among those, find which end > start_offset
+                _cand_end = _fe_sorted[:i_end]
+                _cand_pcs = _fp_sorted[:i_end]
+                _sub = _cand_end > start_offset
+                if np.any(_sub):
+                    pcs_list = list(dict.fromkeys(_cand_pcs[_sub].tolist()))
+                else:
+                    pcs_list = []
 
                 self.data_grid[(s_idx, o_idx)] = {
-                    "pcs": list(pcs_tuple),
-                    "card": len(pcs_tuple),
-                    "forte": info['forte'],
-                    "prime": info['prime'],
-                    "iv": info['iv'],
+                    "pcs": pcs_list,
+                    "card": len(pcs_list),
                     "start_offset": start_offset,
-                    "end_offset": min(self.total_length, end_offset)
+                    "end_offset": min(self.total_length, start_offset + scale_offset)
                 }
 
     def _update_matrix(self):
         self.matrix_display = np.zeros((self.num_scales, self.num_points), dtype=int)
 
         for (s_idx, o_idx), data in self.data_grid.items():
-            if data["card"] in self.cardinality_mask and data["forte"] not in ["Empty", "N/A"]:
-                self.matrix_display[s_idx, o_idx] = self._get_forte_color_index(data["forte"])
-            else:
-                self.matrix_display[s_idx, o_idx] = 0
+            if data["card"] in self.cardinality_mask:
+                if "forte" not in data:
+                    pcs_key = tuple(sorted(data["pcs"]))
+                    if pcs_key in self._forte_cache:
+                        forte, prime, iv = self._forte_cache[pcs_key]
+                    else:
+                        forte, prime, iv = fast_pitch_class_info(list(pcs_key))
+                        self._forte_cache[pcs_key] = (forte, prime, iv)
+                    data["forte"] = forte
+                    data["prime"] = prime
+                    data["iv"] = iv
+                if data["forte"] not in ["Empty", "N/A"]:
+                    self.matrix_display[s_idx, o_idx] = self._get_forte_color_index(data["forte"])
+                    continue
+            self.matrix_display[s_idx, o_idx] = 0
 
     def _init_ui(self):
         # Figure DPI: 120 gives noticeably sharper text but keeps the
@@ -522,7 +612,7 @@ class InteractiveDynamicSetExplorer:
         # Reduce font size and increase line spacing for cardinality labels
         if hasattr(self.check_box, 'labels'):
             for i, lbl in enumerate(self.check_box.labels):
-                lbl.set_fontsize(5.0)
+                lbl.set_fontsize(6)
         n_labels = len(self.check_box.labels)  # 13 = All + 1..12
         self.ax_check.set_ylim(-1.5, n_labels + 1.5)
         # 格式化文本 — "Corpus:" 标题独立放置在 ax_textbox 上方，框内仅显示文件名
@@ -534,7 +624,7 @@ class InteractiveDynamicSetExplorer:
         self.ax_textbox.set_yticks([])
         for s in self.ax_textbox.spines.values():
             s.set_visible(False)
-        self.ax_textbox.set_title('Corpus:', fontsize=6.5, loc='left', pad=3)
+        self.ax_textbox.set_title('Corpus:', fontsize=6, loc='left', pad=3)
 
         self.textbox_corpus = TextBox(self.ax_textbox, '', initial=corpus_display_text)
 
@@ -1300,6 +1390,17 @@ class InteractiveDynamicSetExplorer:
             pitch_str = ""
             # data_grid 路径：实时从 piano_roll_notes 统计活跃声部（完整显示）
             if info is not None:
+                # Ensure Forte/prime/iv computed before reading
+                if "forte" not in info:
+                    pcs_key = tuple(sorted(info.get("pcs", [])))
+                    if pcs_key in self._forte_cache:
+                        forte, prime, iv = self._forte_cache[pcs_key]
+                    else:
+                        forte, prime, iv = fast_pitch_class_info(list(pcs_key))
+                        self._forte_cache[pcs_key] = (forte, prime, iv)
+                    info["forte"] = forte
+                    info["prime"] = prime
+                    info["iv"] = iv
                 grid_voice_pcs = {}
                 for nt in getattr(self, 'piano_roll_notes', []):
                     start, dur, pitch, voice_id = nt
@@ -1329,7 +1430,7 @@ class InteractiveDynamicSetExplorer:
         self.ax_text.text(
             0.03, 0.97, text_str,
             transform=self.ax_text.transAxes,
-            fontsize=6.5,
+            fontsize=6,
             verticalalignment='top',
             fontfamily='monospace',
             wrap=True,
@@ -1470,7 +1571,7 @@ class InteractiveDynamicSetExplorer:
             self.ax_voices.text(
                 0.27, y_i, display_name,
                 transform=self.ax_voices.transAxes,
-                fontsize=6.5,
+                fontsize=6,
                 color=v_info['color'],
                 fontweight='bold',
                 verticalalignment='center',
