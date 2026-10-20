@@ -248,6 +248,9 @@ class InteractiveDynamicSetExplorer:
         else:
             parts = [self.score]
 
+        # Phase 1: collect all events across all parts with their temporal info
+        raw_events = []  # (abs_start, part_idx, part_name, el, dur)
+
         for part_idx, part in enumerate(parts):
             part_name = getattr(part, 'partName', None)
             if not part_name:
@@ -256,38 +259,48 @@ class InteractiveDynamicSetExplorer:
             for el in part.recurse().getElementsByClass(["Note", "Chord"]):
                 abs_start = float(el.getOffsetInHierarchy(self.score))
                 dur = float(el.quarterLength)
-                abs_end = abs_start + dur
+                raw_events.append((abs_start, part_idx, part_name, el, dur))
 
-                # Use the Part as the canonical voice/part group.  Some MusicXML
-                # files assign internal Voice numbers (1/2/...) that differ per
-                # part; folding them into the id here made parts collide
-                # (e.g. Violins I V:2 vs Violas part 2).  Keeping part_idx
-                # guarantees each instrument part gets exactly one group.
-                voice_id = part_idx
+        # Sort: by offset ascending; for same offset, by highest pitch descending
+        # (top to bottom, matching voice hierarchy); same-highest-pitch uses part index.
+        def _event_sort_key(e):
+            offset, part_idx, _, el, _ = e
+            if isinstance(el, m21.chord.Chord):
+                highest = max(p.midi for p in el.pitches)
+            else:
+                highest = el.pitch.midi
+            return (offset, -highest, part_idx)
 
-                event_voice_ids.append(voice_id)
+        raw_events.sort(key=_event_sort_key)
 
-                if voice_id not in self.voice_legend:
-                    color_idx = len(self.voice_legend) % len(self.voice_colors)
-                    self.voice_legend[voice_id] = {
-                        "name": f"{part_name} (V:{voice_id})",
-                        "color": self.voice_colors[color_idx],
-                        "color_idx": color_idx
-                    }
+        # Phase 2: populate all lists in the sorted order
+        for abs_start, part_idx, part_name, el, dur in raw_events:
+            abs_end = abs_start + dur
+            voice_id = part_idx
 
-                if isinstance(el, m21.chord.Chord):
-                    sorted_pitches = sorted(el.pitches, key=lambda p: p.midi, reverse=True)
-                    pcs = tuple(p.pitchClass for p in sorted_pitches)
+            event_voice_ids.append(voice_id)
 
-                    for p in sorted_pitches:
-                        self.piano_roll_notes.append((abs_start, dur, p.midi, voice_id))
-                else:
-                    pcs = (el.pitch.pitchClass,)
-                    self.piano_roll_notes.append((abs_start, dur, el.pitch.midi, voice_id))
+            if voice_id not in self.voice_legend:
+                color_idx = len(self.voice_legend) % len(self.voice_colors)
+                self.voice_legend[voice_id] = {
+                    "name": f"{part_name} (V:{voice_id})",
+                    "color": self.voice_colors[color_idx],
+                    "color_idx": color_idx
+                }
 
-                starts_list.append(abs_start)
-                ends_list.append(abs_end)
-                pcs_list.append(pcs)
+            if isinstance(el, m21.chord.Chord):
+                sorted_pitches = sorted(el.pitches, key=lambda p: p.midi, reverse=True)
+                pcs = tuple(p.pitchClass for p in sorted_pitches)
+
+                for p in sorted_pitches:
+                    self.piano_roll_notes.append((abs_start, dur, p.midi, voice_id))
+            else:
+                pcs = (el.pitch.pitchClass,)
+                self.piano_roll_notes.append((abs_start, dur, el.pitch.midi, voice_id))
+
+            starts_list.append(abs_start)
+            ends_list.append(abs_end)
+            pcs_list.append(pcs)
 
         self.active_voice_ids = set(self.voice_legend.keys())  # all checked by default
         # Keep the full unfiltered data plus an event voice id per event,
@@ -514,11 +527,11 @@ class InteractiveDynamicSetExplorer:
                           x=0.5, ha='center')
 
         # 主 gridspec: 左(主图) | 右(信息+控件)
-        gs_main = self.fig.add_gridspec(1, 2, width_ratios=[4.0, 3.0], wspace=0.22)
+        gs_main = self.fig.add_gridspec(1, 3, width_ratios=[12.0, 0.8, 17.0], wspace=0.02)
 
         # 左列 5 行: scape / scrollbar / piano / slider_max / slider_step
         gs_left = gs_main[0, 0].subgridspec(
-            5, 1, height_ratios=[3.0, 0.18, 3.2, 0.12, 0.12], hspace=0.35
+            5, 1, height_ratios=[3.0, 0.18, 3.2, 0.14, 0.14], hspace=0.55
         )
         self.ax_scape = self.fig.add_subplot(gs_left[0])
         self.ax_scrollbar = self.fig.add_subplot(gs_left[1])
@@ -527,7 +540,7 @@ class InteractiveDynamicSetExplorer:
         self.ax_slider_step = self.fig.add_subplot(gs_left[4])
 
         # 右列 4 行: 声部信息框最大化，底部控件推到最底下
-        gs_right = gs_main[0, 1].subgridspec(
+        gs_right = gs_main[0, 2].subgridspec(
             4, 1, height_ratios=[8.0, 2.5, 4.0, 0.3], hspace=0.15
         )
         self.ax_text = self.fig.add_subplot(gs_right[0])
@@ -760,7 +773,7 @@ class InteractiveDynamicSetExplorer:
             if (start < end_offset and end > start_offset) and (min_pitch <= pitch <= max_pitch):
                 pcs_sequence.append(pitch % 12)
                 voice_ids_in.add(voice_id)
-                voice_pcs.setdefault(voice_id, []).append(pitch % 12)
+                voice_pcs.setdefault(voice_id, []).append(pitch)  # raw MIDI
 
         pcs_tuple, info = self._get_set_info(pcs_sequence)
         # voice_id -> display name mapping
@@ -1310,16 +1323,26 @@ class InteractiveDynamicSetExplorer:
             # ax_text 高度 ≈ 0.40 fig-fraction × 12in = 4.8in, 每行 ≈ 9.2pt (8pt × 1.15 linespacing)
 
 
+            def _midi_to_display(midi):
+                """Convert MIDI pitch like 69 to 'A5' then '9(A5)'."""
+                try:
+                    p = m21.pitch.Pitch(midi=int(midi))
+                    name = p.nameWithOctave
+                    return f"{p.pitchClass}({name})"
+                except Exception:
+                    return str(midi)
+
             def _write_voice_details_per_part(nm_list, pcs_detail):
                 lines = []
                 # 每个声部最多占 2 行，超出的部分用 "..." 截断该声部，不影响后续声部
                 for nm in nm_list:
                     v_id = name_to_id.get(nm)
-                    pcs = pcs_detail.get(v_id, [])
-                    if not pcs:
+                    raw = pcs_detail.get(v_id, [])
+                    if not raw:
                         lines.append(f"    {nm}: []")
                         continue
-                    parts = [" ".join(str(pc) for pc in pcs[i:i+wrap_chunk]) for i in range(0, len(pcs), wrap_chunk)]
+                    display_items = [_midi_to_display(m) for m in raw]
+                    parts = [" ".join(display_items[i:i+wrap_chunk]) for i in range(0, len(display_items), wrap_chunk)]
                     voice_rows = []
                     for i_part, part in enumerate(parts):
                         if i_part == 0 and len(parts) == 1:
@@ -1363,6 +1386,42 @@ class InteractiveDynamicSetExplorer:
             rows.append(current.rstrip(", "))
         return "\n" + "\n".join(rows)
 
+    def _annotated_pcs_line(self, pcs_list, voice_pcs_detail):
+        """Build PCs lines annotated with octave note names, auto-wrapped.
+        Returns a list of strings (one per line) for the text display.
+        """
+        if not pcs_list:
+            return ["PCs: (none)"]
+        # Collect raw MIDI mapping from voice detail (PC -> first raw MIDI found)
+        pc_to_midi = {}
+        if voice_pcs_detail:
+            for vid, pitches in voice_pcs_detail.items():
+                for m in pitches:
+                    pc = m % 12 if isinstance(m, int) else m
+                    if pc not in pc_to_midi:
+                        pc_to_midi[pc] = m
+        items = []
+        for pc in pcs_list:
+            midi = pc_to_midi.get(pc)
+            if midi is not None:
+                try:
+                    p = m21.pitch.Pitch(midi=int(midi))
+                    items.append(f"{pc}({p.nameWithOctave})")
+                except Exception:
+                    items.append(str(pc))
+            else:
+                items.append(str(pc))
+        # Auto-wrap: ~12 items per line (PC+name ~9 chars each)
+        per_line = 10
+        lines = []
+        for i in range(0, len(items), per_line):
+            chunk = items[i:i+per_line]
+            if i == 0:
+                lines.append("PCs: " + " ".join(chunk))
+            else:
+                lines.append("      " + " ".join(chunk))
+        return lines
+
     def _update_text_info(self):
         """Update analysis text in ax_text (text-only). Voice checkboxes are drawn separately in ax_voices via _draw_voice_panel."""
         self.ax_text.clear()
@@ -1405,7 +1464,7 @@ class InteractiveDynamicSetExplorer:
                 for nt in getattr(self, 'piano_roll_notes', []):
                     start, dur, pitch, voice_id = nt
                     if start < info['end_offset'] and start + dur > info['start_offset']:
-                        grid_voice_pcs.setdefault(voice_id, []).append(pitch % 12)
+                        grid_voice_pcs.setdefault(voice_id, []).append(pitch)  # raw MIDI
                 active_vids = sorted(grid_voice_pcs.keys())
                 voices_in = [
                     self.voice_legend.get(vid, {}).get('name', f'V:{vid}')
@@ -1416,21 +1475,27 @@ class InteractiveDynamicSetExplorer:
                 voice_block = ""
 
         if info:
+            if self.custom_2d_selection:
+                pcs_lines = self._annotated_pcs_line(info['pcs'], voice_pcs_detail)
+            else:
+                # Browse/grid path — use grid_voice_pcs from the loop for annotations
+                gvd = {} if "grid_voice_pcs" not in dir() else grid_voice_pcs
+                pcs_lines = self._annotated_pcs_line(info['pcs'], gvd)
+            pcs_annotated = "\n".join(pcs_lines)
             text_str = (
                 f"Mode: [{self.active_tool}]  Offset: {info['start_offset']:.1f}-{info['end_offset']:.1f}{pitch_str}\n"
                 f"Window: {window_sz:.1f}  Step: {self.offset_step:.1f}\n"
                 f"Forte: {info['forte']}  Card: {info['card']}\n"
                 f"Prime: {info['prime']}\n"
-                f"PCs: {info['pcs']}\n"
+                f"{pcs_annotated}\n"
                 f"IV: {info['iv']}{voice_block}"
             )
         else:
             text_str = "No Data Selected"
-
         self.ax_text.text(
-            0.03, 0.97, text_str,
+            0.002, 0.97, text_str,
             transform=self.ax_text.transAxes,
-            fontsize=6,
+            fontsize=7.5,
             verticalalignment='top',
             fontfamily='monospace',
             wrap=True,
