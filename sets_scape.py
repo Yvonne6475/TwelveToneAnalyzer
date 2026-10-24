@@ -358,105 +358,36 @@ class InteractiveDynamicSetExplorer:
         self.active_tool = 'Browse'
         self.selection_enabled = False
 
-    # ---------- Fast redraw (blit) helpers ----------
-    def _init_blit(self):
-        """Set up background caching for fast partial redraws.
-
-        Static content (piano roll, pcolormesh, axes spines/labels) is
-        captured once into a cached background.  Changing artists (crosshair,
-        window patch, info text, voice panel) are repainted on top with blit.
-
-        IMPORTANT: the cached background must NOT contain any dynamic artist.
-        _capture_background hides the entire dynamic layer before capturing.
-        """
-        # Preserve artists that were already registered by _update_text_info /
-        # _draw_voice_panel during _init_ui; do NOT reset the lists here.
-        if not hasattr(self, '_blit_artists'):
-            self._blit_artists = []
-        if not hasattr(self, '_voice_artists'):
-            self._voice_artists = []
-        self._bg = None
-        self._capturing_bg = False
-        # adopt artists created before _init_blit ran (crosshair, window patch,
-        # body text, voice panel) into the dynamic layer
-        if hasattr(self, 'crosshair') and self.crosshair is not None:
-            self._add_blit_artist(self.crosshair)
-        if getattr(self, 'window_patch', None) is not None:
-            self._add_blit_artist(self.window_patch)
-        if getattr(self, '_text_artist', None) is not None:
-            self._add_blit_artist(self._text_artist)
-        # Voice-panel artists live in the background, not the dynamic layer.
-
-    def _set_dynamic_visible(self, visible):
-        for art in getattr(self, '_blit_artists', []):
-            try:
-                art.set_visible(visible)
-            except Exception:
-                pass
-
-    def _capture_background(self, redraw_dynamic=True):
-        """Capture a background snapshot containing ONLY static content."""
-        canvas = self.fig.canvas
-        fig = self.fig
-        self._set_dynamic_visible(False)
-        self._capturing_bg = True
+    def _get_mono_char_w_px(self):
+        """Measure the real per-character pixel width of the monospace body
+        font using the canvas renderer. Falls back to an estimate when the
+        renderer is not yet available. Cached after the first call."""
+        cached = getattr(self, '_mono_char_w_px', None)
+        if cached is not None:
+            return cached
+        w = None
         try:
-            fig.canvas.draw()
-            self._bg = canvas.copy_from_bbox(fig.bbox)
-        except Exception:
-            self._bg = None
-        finally:
-            self._capturing_bg = False
-            self._set_dynamic_visible(True)
-        if self._bg is not None and redraw_dynamic:
-            canvas.restore_region(self._bg)
-            for art in getattr(self, '_blit_artists', []):
-                fig.draw_artist(art)
-            canvas.blit(fig.bbox)
+            renderer = self.fig.canvas.get_renderer()
             try:
-                canvas.flush_events()
+                fsize = self._text_artist.get_fontsize()
             except Exception:
-                pass
-
-    def _add_blit_artist(self, art):
-        art.set_animated(True)
-        lst = getattr(self, '_blit_artists', None)
-        if lst is None:
-            self._blit_artists = []
-            lst = self._blit_artists
-        if art not in lst:
-            lst.append(art)
-
-    def _remove_blit_artist(self, art):
-        lst = getattr(self, '_blit_artists', None)
-        if lst and art in lst:
-            lst.remove(art)
-
-    def _replace_voice_artists(self, artists):
-        """Voice-panel artists are static — painted into the background.
-        They only change on voice toggles, which recaptures the bg."""
-        self._voice_artists = artists
-
-    def _fast_refresh(self):
-        """Blit-redraw only the dynamic layer onto a pre-cached background."""
-        canvas = self.fig.canvas
-        fig = self.fig
-        if getattr(self, '_bg', None) is None:
-            self._capture_background()
-            if getattr(self, '_bg', None) is None:
-                fig.canvas.draw_idle()
-                return
-        try:
-            canvas.restore_region(self._bg)
-            for art in getattr(self, '_blit_artists', []):
-                fig.draw_artist(art)
-            canvas.blit(fig.bbox)
-            try:
-                canvas.flush_events()
-            except Exception:
-                pass
+                fsize = 7.5
+            probe = self.ax_text.text(0.5, 0.5, 'M' * 60,
+                                      fontsize=fsize, fontfamily='monospace')
+            bb = probe.get_window_extent(renderer)
+            probe.remove()
+            w = bb.width / 60.0
         except Exception:
-            fig.canvas.draw_idle()
+            w = None
+        if w is None or w <= 0:
+            # estimate: monospace advance ~0.6em; 7.5pt at 120dpi
+            w = 0.62 * 7.5 * self.fig.dpi / 72.0
+        self._mono_char_w_px = w
+        return w
+
+    def _safe_redraw(self):
+        """Full-figure redraw that respects all Matplotlib widgets."""
+        self.fig.canvas.draw_idle()
 
     def _set_scrollbar_no_draw(self, val):
         """Move the pan scrollbar without triggering a full-canvas draw_idle
@@ -817,11 +748,12 @@ class InteractiveDynamicSetExplorer:
         self._update_window_overlay()
         self._update_text_info()
         plt.tight_layout()
-        # Set up fast (blit) redraw: Dynamically-changing artists were created
-        # by _update_window_overlay / _update_text_info above.
-        self._init_blit()
-        # Background will be captured on first click (after window is shown and
-        # layout is stable; capturing before plt.show() gives wrong dimensions).
+        # 预热：draw 一次后用 renderer 实测正文字符像素宽，供换行精确切分
+        try:
+            self.fig.canvas.draw()
+            self._get_mono_char_w_px()
+        except Exception:
+            pass
         plt.show()
 
     def _remove_window_overlay(self):
@@ -873,7 +805,7 @@ class InteractiveDynamicSetExplorer:
 
         self._update_window_overlay()
         self._update_text_info()
-        self._capture_background(redraw_dynamic=True)
+        self._safe_redraw()
 
     def _analyze_custom_2d_range(self, start_offset, end_offset, min_pitch, max_pitch):
         pcs_sequence = []
@@ -938,7 +870,7 @@ class InteractiveDynamicSetExplorer:
 
         self._update_window_overlay()
         self._update_text_info()
-        self._capture_background(redraw_dynamic=True)
+        self._safe_redraw()
 
     def _redraw_setscape_pcolormesh(self):
         self.ax_scape.clear()
@@ -995,7 +927,7 @@ class InteractiveDynamicSetExplorer:
 
                 self._update_window_overlay()
                 self._update_text_info(skip_voice_panel=True)
-                self._fast_refresh()
+                self._safe_redraw()
                 return
 
             elif self.active_tool in ['Zoom In (+)', 'Zoom Out (-)']:
@@ -1049,7 +981,7 @@ class InteractiveDynamicSetExplorer:
 
                 # Viewport changed: repaint the two plot axes + dynamic layer.
                 # Viewport changed — full redraw required (blit background is stale).
-                self._capture_background(redraw_dynamic=True)
+                self._safe_redraw()
                 return
 
         # Focus tracking for Pan View keyboard stepping + handle turns red
@@ -1058,7 +990,6 @@ class InteractiveDynamicSetExplorer:
                 self._pan_step_active = True
                 self.scrollbar._handle.set_markerfacecolor('#DD2222')
                 self.scrollbar._handle.set_markeredgecolor('#DD2222')
-                self._bg = None
                 self.fig.canvas.draw_idle()
                 return
         else:
@@ -1066,7 +997,6 @@ class InteractiveDynamicSetExplorer:
                 self._pan_step_active = False
                 self.scrollbar._handle.set_markerfacecolor('white')
                 self.scrollbar._handle.set_markeredgecolor('.75')
-                self._bg = None
                 self.fig.canvas.draw_idle()
                 return
     def _reload_and_refresh(self, target_path, is_local=False):
@@ -1113,7 +1043,7 @@ class InteractiveDynamicSetExplorer:
         self.textbox_corpus.set_val(corpus_display_text)
         self.textbox_corpus.eventson = True
 
-        self._capture_background(redraw_dynamic=True)
+        self._safe_redraw()
 
     def _on_corpus_submit(self, text):
         lines = [line.strip() for line in text.split('\n') if line.strip()]
@@ -1247,8 +1177,6 @@ class InteractiveDynamicSetExplorer:
                 linestyle='--', zorder=4
             )
             self.window_patch = self.ax_piano.add_patch(wp)
-            self.window_patch.set_animated(True)
-            self._add_blit_artist(self.window_patch)
         else:
             self.window_patch.set_xy((start_o, ymin))
             self.window_patch.set_width(width)
@@ -1272,7 +1200,7 @@ class InteractiveDynamicSetExplorer:
         self.selected_offset_idx = min(self.selected_offset_idx, self.num_points - 1)
         self.selected_scale_idx = min(self.selected_scale_idx, self.num_scales - 1)
 
-        self._capture_background(redraw_dynamic=True)
+        self._safe_redraw()
 
     def _on_reset_view(self, event):
         default_ymin = self.scales[0] - self.offset_step / 2
@@ -1292,7 +1220,7 @@ class InteractiveDynamicSetExplorer:
         if hasattr(self, 'rect_selector'):
             self.rect_selector.set_active(False)
 
-        self._capture_background(redraw_dynamic=True)
+        self._safe_redraw()
 
     def _on_scroll_pan(self, val):
         cur_xlim = self.ax_scape.get_xlim()
@@ -1313,7 +1241,7 @@ class InteractiveDynamicSetExplorer:
         self.ax_scape.set_xlim(new_xmin, new_xmax)
         self.ax_piano.set_xlim(new_xmin, new_xmax)
         # Viewport changed — full redraw required (blit background is stale).
-        self._capture_background(redraw_dynamic=True)
+        self._safe_redraw()
 
     def _on_card_toggle(self, label):
         if label == "All":
@@ -1333,7 +1261,7 @@ class InteractiveDynamicSetExplorer:
 
         self._update_matrix()
         self.quad_mesh.set_array(self.matrix_display.ravel())
-        self._capture_background(redraw_dynamic=True)
+        self._safe_redraw()
 
     def _sync_master_card(self):
         """Set the master All checkbox active only if all 1-12 are active."""
@@ -1378,7 +1306,7 @@ class InteractiveDynamicSetExplorer:
             else:
                 self.active_voice_ids = set(all_ids)
             self._update_text_info()
-            self._capture_background(redraw_dynamic=True)
+            self._safe_redraw()
             return
 
         rects = getattr(self, '_voice_check_rects', {})
@@ -1390,7 +1318,7 @@ class InteractiveDynamicSetExplorer:
                     self.active_voice_ids.add(v_id)
                 # Visual-only toggle; click Refresh to recompute with new voice selection
                 self._update_text_info()
-                self._capture_background(redraw_dynamic=True)
+                self._safe_redraw()
                 return
 
     def _refresh_filtered_data(self):
@@ -1413,6 +1341,18 @@ class InteractiveDynamicSetExplorer:
         self.starts_arr = np.array(filt_starts)
         self.ends_arr = np.array(filt_ends)
         self.pcs_arr = filt_pcs
+
+        # Rebuild flat PC arrays (one row per pitch-class) from the filtered
+        # events so _recompute_data_grid actually reflects the voice selection.
+        _fs, _fe, _fp = [], [], []
+        for i, pc_tuple in enumerate(filt_pcs):
+            s = filt_starts[i]
+            e = filt_ends[i]
+            for pc in pc_tuple:
+                _fs.append(s); _fe.append(e); _fp.append(pc)
+        self._flat_starts = np.array(_fs, dtype=np.float64)
+        self._flat_ends   = np.array(_fe, dtype=np.float64)
+        self._flat_pcs    = np.array(_fp, dtype=np.int32)
 
         self._recompute_data_grid()
         self._update_matrix()
@@ -1440,14 +1380,17 @@ class InteractiveDynamicSetExplorer:
             name_to_id = {}
             for v_id, v_info in voice_legend.items():
                 name_to_id[_short(v_info['name'])] = v_id
-            # 用满可用宽度，只留最小边距
-            ax_bbox = self.ax_text.get_position().bounds
-            fig_w = self.fig.get_figwidth()
-            ax_w_in = ax_bbox[2] * fig_w
-            mono_cpw = 4.8  # monospace 8pt 每字符≈4.8pt
-            margin_chars = 14  # 缩进 + 声部名 + "[" 的最小值
-            usable_chars = int((ax_w_in * 72 - margin_chars * mono_cpw) / mono_cpw)
-            wrap_chunk = max(4, usable_chars // 3)  # 每个 PC = "XX " ≈ 3 字符
+            # 用 renderer 实测每个字符的像素宽，任何字体/后端都不会超出右边界
+            char_w_px = self._get_mono_char_w_px()
+            try:
+                # canvas.get_width_height() 是当前后端（TkAgg/Agg）的真实画布像素，
+                # 不依赖 fig.dpi 换算，Retina/Tk scaling 下也准确。
+                cw, _ch = self.fig.canvas.get_width_height()
+                ax_bbox = self.ax_text.get_position().bounds
+                ax_w_px = ax_bbox[2] * cw
+            except Exception:
+                ax_w_px = 994.8
+            usable_px = ax_w_px * 0.95  # 留足右边距，防止后端字体度量差异
             # 估算总行数，如果超出框高则截断
             # ax_text 高度 ≈ 0.40 fig-fraction × 12in = 4.8in, 每行 ≈ 9.2pt (8pt × 1.15 linespacing)
 
@@ -1461,9 +1404,21 @@ class InteractiveDynamicSetExplorer:
                 except Exception:
                     return str(midi)
 
+            # 动态估算每个声部在 ax_text 里能占多少行：
+            # 可用行数 = 文本框高度换行数 - 顶部固定文本占行数（Mode/Window/Forte/Prime/PCs/IV）
+            try:
+                ax_h_in = self.ax_text.get_position().bounds[3] * self.fig.get_figheight()
+            except Exception:
+                ax_h_in = 5.0
+            line_h_in = 9.2 / 72.0  # 8pt * 1.15 linespacing ≈ 9.2pt
+            avail_lines = max(4, int(ax_h_in / line_h_in) - 8)  # 减去固定文本约 8 行
+            # 每个声部至少 1 行，尽量完整显示
+            n_voices = max(1, len(short_names))
+            max_rows_per_voice = max(1, avail_lines // n_voices)
+
             def _write_voice_details_per_part(nm_list, pcs_detail):
                 lines = []
-                # 每个声部最多占 2 行，超出的部分用 "..." 截断该声部，不影响后续声部
+                # 每个声部按 max_rows_per_voice 换行显示，超出才截断
                 for nm in nm_list:
                     v_id = name_to_id.get(nm)
                     raw = pcs_detail.get(v_id, [])
@@ -1471,20 +1426,36 @@ class InteractiveDynamicSetExplorer:
                         lines.append(f"    {nm}: []")
                         continue
                     display_items = [_midi_to_display(m) for m in raw]
-                    parts = [" ".join(display_items[i:i+wrap_chunk]) for i in range(0, len(display_items), wrap_chunk)]
+                    # 按 renderer 实测像素宽切行，保证任何行都不超出轴右边界
+                    first_prefix = f"    {nm}: ["
+                    cont_prefix = "           "  # 与 "[" 后对齐
+                    cap_first = usable_px - len(first_prefix) * char_w_px
+                    cap_cont = usable_px - len(cont_prefix) * char_w_px
+                    chunks = []   # list of (是首行?, 文本)
+                    cur, cur_px, cap = [], 0.0, cap_first
+                    for it in display_items:
+                        it_px = (len(it) + 1) * char_w_px  # 项 + 分隔空格
+                        if cur and cur_px + it_px > cap:
+                            chunks.append((len(chunks) == 0, " ".join(cur)))
+                            cur, cur_px = [], 0.0
+                            cap = cap_cont
+                        cur.append(it)
+                        cur_px += it_px
+                    if cur:
+                        chunks.append((len(chunks) == 0, " ".join(cur)))
                     voice_rows = []
-                    for i_part, part in enumerate(parts):
-                        if i_part == 0 and len(parts) == 1:
-                            voice_rows.append(f"    {nm}: [{part}]")
-                        elif i_part == 0:
-                            voice_rows.append(f"    {nm}: [{part}")
-                        elif i_part == len(parts) - 1:
-                            voice_rows.append(f"           {part}]")
+                    for i_part, (is_first, text) in enumerate(chunks):
+                        if is_first and len(chunks) == 1:
+                            voice_rows.append(f"    {nm}: [{text}]")
+                        elif is_first:
+                            voice_rows.append(f"    {nm}: [{text}")
+                        elif i_part == len(chunks) - 1:
+                            voice_rows.append(f"           {text}]")
                         else:
-                            voice_rows.append(f"           {part}")
-                    # 最多 2 行，多余行换成省略号
-                    if len(voice_rows) > 2:
-                        voice_rows = voice_rows[:2]
+                            voice_rows.append(f"           {text}")
+                    # 动态行数限制：超出部分换成省略号
+                    if len(voice_rows) > max_rows_per_voice:
+                        voice_rows = voice_rows[:max_rows_per_voice]
                         last = voice_rows[-1].rstrip()
                         if last.endswith(']'):
                             voice_rows[-1] = last[:-1].rstrip() + " ...]"
@@ -1493,8 +1464,22 @@ class InteractiveDynamicSetExplorer:
                     lines.extend(voice_rows)
                 return lines
 
+            # 摘要行 "Voices (n): a, b, c" 也按像素宽换行，避免超出右边界
+            sum_words = single.split(" ")
+            sum_lines, cur_line = [], ""
+            for w in sum_words:
+                add_w = (len(w) + 1) * char_w_px if cur_line else len(w) * char_w_px
+                if not cur_line:
+                    cur_line = w
+                elif (len(cur_line) + 1 + len(w)) * char_w_px <= usable_px:
+                    cur_line += " " + w
+                else:
+                    sum_lines.append(cur_line)
+                    cur_line = "    " + w
+            if cur_line:
+                sum_lines.append(cur_line)
             detail_lines = _write_voice_details_per_part(short_names, voice_pcs_detail)
-            return "\n" + single + "\n" + "\n".join(detail_lines)
+            return "\n" + "\n".join(sum_lines) + "\n" + "\n".join(detail_lines)
         # fallback: single line or wrap
         if len(single) <= max_chars:
             return "\n" + single
@@ -1547,9 +1532,30 @@ class InteractiveDynamicSetExplorer:
                         display_items.append(str(pc))
                 else:
                     display_items.append(str(pc))
-            per_line = 12
-            chunks = [" ".join(display_items[i:i+per_line])
-                      for i in range(0, len(display_items), per_line)]
+            # 按像素宽切行：每个显示项长度不固定，固定 per_line 会超出右边界
+            try:
+                cw, _ch = self.fig.canvas.get_width_height()
+                ax_bbox = self.ax_text.get_position().bounds
+                ax_w_px = ax_bbox[2] * cw
+            except Exception:
+                ax_w_px = 994.8
+            usable_px = ax_w_px * 0.95
+            try:
+                char_w_px = self._get_mono_char_w_px()
+            except Exception:
+                char_w_px = 0.62 * 7.5 * 120 / 72.0
+            prefix_px = 2 * char_w_px  # "  " 缩进
+            cap = usable_px - prefix_px
+            chunks, cur, cur_px = [], [], 0.0
+            for it in display_items:
+                it_px = (len(it) + 1) * char_w_px
+                if cur and cur_px + it_px > cap:
+                    chunks.append(" ".join(cur))
+                    cur, cur_px = [], 0.0
+                cur.append(it)
+                cur_px += it_px
+            if cur:
+                chunks.append(" ".join(cur))
             for chunk in chunks:
                 lines.append(f"  {chunk}")
             return lines
@@ -1705,8 +1711,6 @@ class InteractiveDynamicSetExplorer:
                 wrap=False,
                 linespacing=1.10
             )
-            self._text_artist.set_animated(True)
-            self._add_blit_artist(self._text_artist)
         else:
             self._text_artist.set_text(text_str)
         # ax_text 已 axis('off')，无需再设置 xlim/ylim（保留会触发自动 tick 标签）
@@ -1803,7 +1807,6 @@ class InteractiveDynamicSetExplorer:
                 fontfamily='monospace',
                 color='#666666'
             ))
-            self._replace_voice_artists(artists)
             return
 
         y_start = 0.60
@@ -1863,9 +1866,6 @@ class InteractiveDynamicSetExplorer:
                 verticalalignment='center',
                 fontfamily='monospace'
             ))
-
-        self._replace_voice_artists(artists)
-
 
 
 def launch(score_path=None, score=None):
