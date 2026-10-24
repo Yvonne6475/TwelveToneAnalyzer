@@ -155,7 +155,7 @@ class InteractiveDynamicSetExplorer:
             pass
 
         # Generate pre-calculated high-contrast palette
-        self.palette = generate_high_contrast_palette(num_colors=512)
+        self.palette = generate_high_contrast_palette(num_colors=2048)
 
         # Predefined voice colors
         self.voice_colors = ['#D62728', '#1F77B4', '#2CA02C', '#FF7F0E', '#9467BD', '#17BECF', '#8C564B', '#E377C2']
@@ -510,50 +510,25 @@ class InteractiveDynamicSetExplorer:
         return pcs_tuple, self.pcs_cache[cache_key]
 
     def _get_forte_color_index(self, forte_name):
-        # Structure-aware color mapping: structurally similar Forte sets
-        # (same cardinality, close index) get similar hues, so e.g. 3-11
-        # and 3-12 appear in the same color region.
-        # We compute a target hue from the Forte name semantics, then find
-        # the palette entry whose hue is closest (palette uses golden-ratio
-        # spacing, so index != hue — we match by hue, not by index).
+        # Guaranteed unique-per-Forte: sequential allocation up to palette size.
+        # If palette exhausted, falls back to deterministic hash (same Forte always same color).
         if not forte_name or forte_name in ["Empty", "N/A"]:
             return 0
         if not hasattr(self, '_forte_color_map'):
             self._forte_color_map = {}
-            # Precompute palette hues for nearest-hue lookup
-            max_p = len(self.palette) - 1
-            self._palette_hues = [(0.1 + 0.618033988749895 * i) % 1.0 for i in range(max_p + 1)]
+            self._forte_next = 1
         idx = self._forte_color_map.get(forte_name)
         if idx is not None:
             return idx
-        # Parse Forte name: e.g. "3-11", "3-11A", "12-1", "5-35B"
-        m = re.match(r'(\d+)-(\d+)', forte_name)
-        if m:
-            cardinality = int(m.group(1))
-            set_idx = int(m.group(2))
-            # Maximum index per cardinality (Forte catalogue sizes)
-            max_for_card = {1:1, 2:3, 3:12, 4:29, 5:38, 6:50, 7:38, 8:29, 9:12, 10:3, 11:1, 12:1}
-            cmax = max_for_card.get(cardinality, 50)
-            # Hue: cardinality creates 12 broad bands; index fine-tunes within band.
-            # Same cardinality → same hue band. Close index → close offset.
-            hue_pos = ((cardinality - 1) / 12.0 +
-                       (set_idx - 1) / (12.0 * max(cmax, 1) * 0.35))
-            hue_pos = hue_pos % 1.0
-        else:
-            hue_pos = (hash(forte_name) % 1000) / 1000.0
-        # Find palette index with closest hue
         max_p = len(self.palette) - 1
-        target = hue_pos
-        best_i = 1
-        best_dist = 1.0
-        hues = self._palette_hues
-        for i in range(1, max_p + 1):
-            d = min(abs(hues[i] - target), 1.0 - abs(hues[i] - target))
-            if d < best_dist:
-                best_dist = d
-                best_i = i
-        self._forte_color_map[forte_name] = best_i
-        return best_i
+        if self._forte_next <= max_p:
+            idx = self._forte_next
+            self._forte_next += 1
+        else:
+            # Palette exhausted → hash-based fallback (no collisions in practice with 2048 slots)
+            idx = 1 + (hash(forte_name) % max_p)
+        self._forte_color_map[forte_name] = idx
+        return idx
 
     def _recompute_data_grid(self):
         event_boundaries = sorted(list(set(self.starts_arr).union(set(self.ends_arr))))
@@ -1540,32 +1515,85 @@ class InteractiveDynamicSetExplorer:
             rows.append(current.rstrip(", "))
         return "\n" + "\n".join(rows)
 
-    def _annotated_pcs_line(self, pcs_list, voice_pcs_detail):
-        """Build PCs lines annotated with octave note names, auto-wrapped.
+    def _annotated_pcs_line(self, pcs_list, voice_pcs_detail, global_deduped_pcs=None):
+        """Build PCs lines.
+        When global_deduped_pcs is provided (pre-computed time-ordered dedup list),
+        use it directly.  Otherwise fall back to a flat prime-form list.
         Returns a list of strings (one per line) for the text display.
         """
+        import re
+
+        def _short(name):
+            return re.sub(r"\s*\(V:\d+\)\s*$", "", name).strip() or name
+
+        def _midi_to_display(midi):
+            try:
+                p = m21.pitch.Pitch(midi=int(midi))
+                return f"{p.pitchClass}({p.nameWithOctave})"
+            except Exception:
+                return str(midi)
+
+        # Pre-computed global-dedup path (preferred)
+        if global_deduped_pcs is not None:
+            lines = ["PCs (time-ordered, dedup):"]
+            display_items = []
+            for item in global_deduped_pcs:
+                pc, midi = item if isinstance(item, tuple) else (item, None)
+                if midi is not None:
+                    try:
+                        p_obj = m21.pitch.Pitch(midi=int(midi))
+                        display_items.append(f"{pc}({p_obj.nameWithOctave})")
+                    except Exception:
+                        display_items.append(str(pc))
+                else:
+                    display_items.append(str(pc))
+            per_line = 12
+            chunks = [" ".join(display_items[i:i+per_line])
+                      for i in range(0, len(display_items), per_line)]
+            for chunk in chunks:
+                lines.append(f"  {chunk}")
+            return lines
+
+        # Voice-grouped fallback (kept for safety)
+        if voice_pcs_detail:
+            lines = ["PCs (global time order, dedup):"]
+            events = []
+            voice_pitches_with_offset = {}
+            for nt in getattr(self, 'piano_roll_notes', []):
+                start, dur, pitch, voice_id = nt
+                if voice_id in voice_pcs_detail:
+                    pc = pitch % 12
+                    voice_pitches_with_offset.setdefault(voice_id, []).append((start, pc))
+            for v_id, pairs in voice_pitches_with_offset.items():
+                for offset, pc in pairs:
+                    events.append((offset, v_id, pc))
+            events.sort(key=lambda x: (x[0], x[1]))
+            seen = set()
+            deduped_pcs = []
+            for _, _, pc in events:
+                if pc not in seen:
+                    seen.add(pc)
+                    deduped_pcs.append(pc)
+            if not deduped_pcs:
+                return ["PCs: (none)"]
+            display_items = [str(pc) for pc in deduped_pcs]
+            per_line = 12
+            chunks = [" ".join(display_items[i:i+per_line])
+                      for i in range(0, len(display_items), per_line)]
+            for chunk in chunks:
+                lines.append(f"  {chunk}")
+            return lines
+
+        # Fallback: flat prime-form list
         if not pcs_list:
             return ["PCs: (none)"]
-        # Collect raw MIDI mapping from voice detail (PC -> first raw MIDI found)
-        pc_to_midi = {}
-        if voice_pcs_detail:
-            for vid, pitches in voice_pcs_detail.items():
-                for m in pitches:
-                    pc = m % 12 if isinstance(m, int) else m
-                    if pc not in pc_to_midi:
-                        pc_to_midi[pc] = m
         items = []
         for pc in pcs_list:
-            midi = pc_to_midi.get(pc)
-            if midi is not None:
-                try:
-                    p = m21.pitch.Pitch(midi=int(midi))
-                    items.append(f"{pc}({p.nameWithOctave})")
-                except Exception:
-                    items.append(str(pc))
-            else:
+            try:
+                p = m21.pitch.Pitch(midi=int(pc))
+                items.append(f"{pc}({p.nameWithOctave})")
+            except Exception:
                 items.append(str(pc))
-        # Auto-wrap: ~12 items per line (PC+name ~9 chars each)
         per_line = 10
         lines = []
         for i in range(0, len(items), per_line):
@@ -1631,11 +1659,29 @@ class InteractiveDynamicSetExplorer:
                 voice_block = ""
                 _gvd = {}
 
+        # ── Pre-compute time-ordered deduped PCs for annotated PCS line ──
+        global_deduped = None
         if info:
-            if self.custom_2d_selection:
-                pcs_lines = self._annotated_pcs_line(info['pcs'], voice_pcs_detail)
-            else:
-                pcs_lines = self._annotated_pcs_line(info['pcs'], _gvd)
+            events = []
+            for nt in getattr(self, 'piano_roll_notes', []):
+                start, dur, pitch, voice_id = nt
+                if start < info['end_offset'] and start + dur > info['start_offset']:
+                    if self.custom_2d_selection:
+                        x1, x2, y1, y2 = self.custom_2d_selection
+                        if not (y1 <= pitch <= y2):
+                            continue
+                    pc = pitch % 12
+                    events.append((start, voice_id, pc, pitch))  # keep raw MIDI for note name
+            events.sort(key=lambda x: (x[0], x[1]))
+            seen = set()
+            global_deduped = []
+            for _, _, pc, midi in events:
+                if pc not in seen:
+                    seen.add(pc)
+                    global_deduped.append((pc, midi))
+
+        if info:
+            pcs_lines = self._annotated_pcs_line(info['pcs'], _gvd, global_deduped_pcs=global_deduped)
             pcs_annotated = "\n".join(pcs_lines)
             text_str = (
                 f"Mode: [{self.active_tool}]  Offset: {info['start_offset']:.1f}-{info['end_offset']:.1f}{pitch_str}\n"
