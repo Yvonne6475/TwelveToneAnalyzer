@@ -126,7 +126,7 @@ a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=binaries,
-    datas=datas + [('resources/', 'resources'), ('assets/', 'assets'), ('sets_scape.py', '.')],
+    datas=datas + [('resources/', 'resources'), ('assets/', 'assets'), ('sets_scape.py', '.'), ('src/core/forte_db.py', 'src/core')],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

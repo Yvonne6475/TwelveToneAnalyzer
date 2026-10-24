@@ -17,6 +17,7 @@ from tkinter import filedialog, messagebox, simpledialog
 import matplotlib.pyplot as plt
 from matplotlib.widgets import CheckButtons, Slider, RadioButtons, Button, TextBox, RectangleSelector
 from matplotlib.colors import ListedColormap, BoundaryNorm
+from matplotlib.collections import PatchCollection
 import numpy as np
 import matplotlib.patches as patches
 
@@ -60,14 +61,20 @@ def generate_high_contrast_palette(num_colors=256):
 
 
 def fast_pitch_class_info(pcs):
-    """Fast pitch-class set analysis using pure Python and music21."""
+    """Fast pitch-class set analysis — O(1) lookup in the pre-computed
+    Forte set-class database, with a music21 fallback for robustness."""
     if not pcs:
         return "Empty", "[]", "[0 0 0 0 0 0]"
-    c = m21.chord.Chord(pcs)
-    forte = c.forteClass if c.forteClass else "N/A"
-    prime = str(c.primeForm)
-    iv = str(c.intervalVector)
-    return forte, prime, iv
+    key = tuple(sorted(set(pcs)))
+    try:
+        from src.core.forte_db import fast_forte_info
+        return fast_forte_info(key)
+    except Exception:
+        c = m21.chord.Chord(list(key))
+        forte = c.forteClass if c.forteClass else "N/A"
+        prime = str(c.primeForm)
+        iv = str(c.intervalVector)
+        return forte, prime, iv
 
 
 def format_corpus_two_lines(text):
@@ -351,6 +358,121 @@ class InteractiveDynamicSetExplorer:
         self.active_tool = 'Browse'
         self.selection_enabled = False
 
+    # ---------- Fast redraw (blit) helpers ----------
+    def _init_blit(self):
+        """Set up background caching for fast partial redraws.
+
+        Static content (piano roll, pcolormesh, axes spines/labels) is
+        captured once into a cached background.  Changing artists (crosshair,
+        window patch, info text, voice panel) are repainted on top with blit.
+
+        IMPORTANT: the cached background must NOT contain any dynamic artist.
+        _capture_background hides the entire dynamic layer before capturing.
+        """
+        # Preserve artists that were already registered by _update_text_info /
+        # _draw_voice_panel during _init_ui; do NOT reset the lists here.
+        if not hasattr(self, '_blit_artists'):
+            self._blit_artists = []
+        if not hasattr(self, '_voice_artists'):
+            self._voice_artists = []
+        self._bg = None
+        self._capturing_bg = False
+        # adopt artists created before _init_blit ran (crosshair, window patch,
+        # body text, voice panel) into the dynamic layer
+        if hasattr(self, 'crosshair') and self.crosshair is not None:
+            self._add_blit_artist(self.crosshair)
+        if getattr(self, 'window_patch', None) is not None:
+            self._add_blit_artist(self.window_patch)
+        if getattr(self, '_text_artist', None) is not None:
+            self._add_blit_artist(self._text_artist)
+        # Voice-panel artists live in the background, not the dynamic layer.
+
+    def _set_dynamic_visible(self, visible):
+        for art in getattr(self, '_blit_artists', []):
+            try:
+                art.set_visible(visible)
+            except Exception:
+                pass
+
+    def _capture_background(self, redraw_dynamic=True):
+        """Capture a background snapshot containing ONLY static content."""
+        canvas = self.fig.canvas
+        fig = self.fig
+        self._set_dynamic_visible(False)
+        self._capturing_bg = True
+        try:
+            fig.canvas.draw()
+            self._bg = canvas.copy_from_bbox(fig.bbox)
+        except Exception:
+            self._bg = None
+        finally:
+            self._capturing_bg = False
+            self._set_dynamic_visible(True)
+        if self._bg is not None and redraw_dynamic:
+            canvas.restore_region(self._bg)
+            for art in getattr(self, '_blit_artists', []):
+                fig.draw_artist(art)
+            canvas.blit(fig.bbox)
+            try:
+                canvas.flush_events()
+            except Exception:
+                pass
+
+    def _add_blit_artist(self, art):
+        art.set_animated(True)
+        lst = getattr(self, '_blit_artists', None)
+        if lst is None:
+            self._blit_artists = []
+            lst = self._blit_artists
+        if art not in lst:
+            lst.append(art)
+
+    def _remove_blit_artist(self, art):
+        lst = getattr(self, '_blit_artists', None)
+        if lst and art in lst:
+            lst.remove(art)
+
+    def _replace_voice_artists(self, artists):
+        """Voice-panel artists are static — painted into the background.
+        They only change on voice toggles, which recaptures the bg."""
+        self._voice_artists = artists
+
+    def _fast_refresh(self):
+        """Blit-redraw only the dynamic layer onto a pre-cached background."""
+        canvas = self.fig.canvas
+        fig = self.fig
+        if getattr(self, '_bg', None) is None:
+            self._capture_background()
+            if getattr(self, '_bg', None) is None:
+                fig.canvas.draw_idle()
+                return
+        try:
+            canvas.restore_region(self._bg)
+            for art in getattr(self, '_blit_artists', []):
+                fig.draw_artist(art)
+            canvas.blit(fig.bbox)
+            try:
+                canvas.flush_events()
+            except Exception:
+                pass
+        except Exception:
+            fig.canvas.draw_idle()
+
+    def _set_scrollbar_no_draw(self, val):
+        """Move the pan scrollbar without triggering a full-canvas draw_idle
+        (Slider.set_val calls draw_idle internally when drawon is True)."""
+        try:
+            self.scrollbar.drawon = False
+        except Exception:
+            pass
+        self.scrollbar.eventson = False
+        self.scrollbar.set_val(val)
+        self.scrollbar.eventson = True
+        try:
+            self.scrollbar.drawon = True
+        except Exception:
+            pass
+
     def _on_key_press(self, event):
         """Handle arrow key stepping for Pan View."""
         if event.key in ('left', 'right') and getattr(self, '_pan_step_active', False):
@@ -415,7 +537,7 @@ class InteractiveDynamicSetExplorer:
             # Hue: cardinality creates 12 broad bands; index fine-tunes within band.
             # Same cardinality → same hue band. Close index → close offset.
             hue_pos = ((cardinality - 1) / 12.0 +
-                       (set_idx - 1) / (12.0 * cmax * 1.5))
+                       (set_idx - 1) / (12.0 * max(cmax, 1) * 0.35))
             hue_pos = hue_pos % 1.0
         else:
             hue_pos = (hash(forte_name) % 1000) / 1000.0
@@ -455,65 +577,75 @@ class InteractiveDynamicSetExplorer:
         _fs_sorted = _fs[_sort_idx]
         _fe_sorted = _fe[_sort_idx]
         _fp_sorted = _fp[_sort_idx]
-        _n_flat = len(_fs_sorted)
 
         self.data_grid = {}
-        scales_arr = self.scales  # shape (S,)
-        ob = self.offset_boundaries  # shape (N+1,)
+        scales_arr = self.scales
+        ob = self.offset_boundaries
+        # Pre-allocate output arrays for the matrix
+        self.matrix_display = np.zeros((self.num_scales, self.num_points), dtype=int)
 
-        # Pre-compute all end_offsets for each (o_idx, s_idx) efficiently.
-        # For each start_offset, we can compute all end_offsets at once.
         for o_idx in range(self.num_points):
             start_offset = ob[o_idx]
-            end_offsets = start_offset + scales_arr  # shape (S,)
+            end_offsets = start_offset + scales_arr
 
-            # One searchsorted call per offset: find insertion points for all scales
             i_ends = np.searchsorted(_fs_sorted, end_offsets, side='left')
 
             for s_idx, (i_end, scale_offset) in enumerate(zip(i_ends, scales_arr)):
                 if i_end == 0:
-                    self.data_grid[(s_idx, o_idx)] = {
+                    cell = {
                         "pcs": [], "card": 0,
+                        "forte": "Empty", "prime": "", "iv": "",
                         "start_offset": start_offset,
                         "end_offset": min(self.total_length, start_offset + scale_offset)
                     }
+                    self.data_grid[(s_idx, o_idx)] = cell
                     continue
 
-                # Among those, find which end > start_offset
                 _cand_end = _fe_sorted[:i_end]
                 _cand_pcs = _fp_sorted[:i_end]
                 _sub = _cand_end > start_offset
                 if np.any(_sub):
-                    pcs_list = list(dict.fromkeys(_cand_pcs[_sub].tolist()))
+                    # Use np.unique for fast dedup + sort
+                    pcs_arr = np.unique(_cand_pcs[_sub])
+                    pcs_list = pcs_arr.tolist()
                 else:
                     pcs_list = []
 
-                self.data_grid[(s_idx, o_idx)] = {
-                    "pcs": pcs_list,
-                    "card": len(pcs_list),
+                card = len(pcs_list)
+                cell = {
+                    "pcs": pcs_list, "card": card,
                     "start_offset": start_offset,
                     "end_offset": min(self.total_length, start_offset + scale_offset)
                 }
+                if card > 0:
+                    pcs_key = tuple(pcs_list)
+                    cached = self._forte_cache.get(pcs_key)
+                    if cached:
+                        forte, prime, iv = cached
+                    else:
+                        forte, prime, iv = fast_pitch_class_info(pcs_list)
+                        self._forte_cache[pcs_key] = (forte, prime, iv)
+                    cell["forte"] = forte
+                    cell["prime"] = prime
+                    cell["iv"] = iv
+                    if card in self.cardinality_mask and forte not in ["Empty", "N/A"]:
+                        self.matrix_display[s_idx, o_idx] = self._get_forte_color_index(forte)
+                else:
+                    cell["forte"] = "Empty"
+                    cell["prime"] = ""
+                    cell["iv"] = ""
+                self.data_grid[(s_idx, o_idx)] = cell
 
     def _update_matrix(self):
-        self.matrix_display = np.zeros((self.num_scales, self.num_points), dtype=int)
-
+        # Matrix is already populated in _recompute_data_grid; this method
+        # re-applies cardinality filtering for toggle changes without recomputing Forte.
+        self.matrix_display.fill(0)
         for (s_idx, o_idx), data in self.data_grid.items():
-            if data["card"] in self.cardinality_mask:
-                if "forte" not in data:
-                    pcs_key = tuple(sorted(data["pcs"]))
-                    if pcs_key in self._forte_cache:
-                        forte, prime, iv = self._forte_cache[pcs_key]
-                    else:
-                        forte, prime, iv = fast_pitch_class_info(list(pcs_key))
-                        self._forte_cache[pcs_key] = (forte, prime, iv)
-                    data["forte"] = forte
-                    data["prime"] = prime
-                    data["iv"] = iv
-                if data["forte"] not in ["Empty", "N/A"]:
-                    self.matrix_display[s_idx, o_idx] = self._get_forte_color_index(data["forte"])
-                    continue
-            self.matrix_display[s_idx, o_idx] = 0
+            card = data.get("card", 0)
+            if card in self.cardinality_mask and card > 0:
+                forte = data.get("forte", "Empty")
+                if forte not in ["Empty", "N/A"]:
+                    self.matrix_display[s_idx, o_idx] = self._get_forte_color_index(forte)
 
     def _init_ui(self):
         # Figure DPI: 120 gives noticeably sharper text but keeps the
@@ -582,10 +714,10 @@ class InteractiveDynamicSetExplorer:
             norm=self.custom_norm,
             shading='flat'
         )
-        self.ax_scape.set_ylabel("Window Size / Scale (Offset)", fontsize=7)
-        self.ax_scape.tick_params(axis="both", labelsize=5)
-        self.ax_scape.set_xlabel("Actual Offset Position (Quarter Notes)", fontsize=7)
-        self.ax_scape.tick_params(axis="both", labelsize=5)
+        self.ax_scape.set_ylabel("Window Size / Scale (Offset)", fontsize=10)
+        self.ax_scape.tick_params(axis="both", labelsize=8)
+        self.ax_scape.set_xlabel("Actual Offset Position (Quarter Notes)", fontsize=10)
+        self.ax_scape.tick_params(axis="both", labelsize=8)
 
         init_offset = self.offset_points[0]
         init_scale = self.scales[0]
@@ -710,6 +842,11 @@ class InteractiveDynamicSetExplorer:
         self._update_window_overlay()
         self._update_text_info()
         plt.tight_layout()
+        # Set up fast (blit) redraw: Dynamically-changing artists were created
+        # by _update_window_overlay / _update_text_info above.
+        self._init_blit()
+        # Background will be captured on first click (after window is shown and
+        # layout is stable; capturing before plt.show() gives wrong dimensions).
         plt.show()
 
     def _remove_window_overlay(self):
@@ -761,7 +898,7 @@ class InteractiveDynamicSetExplorer:
 
         self._update_window_overlay()
         self._update_text_info()
-        self.fig.canvas.draw_idle()
+        self._capture_background(redraw_dynamic=True)
 
     def _analyze_custom_2d_range(self, start_offset, end_offset, min_pitch, max_pitch):
         pcs_sequence = []
@@ -826,7 +963,7 @@ class InteractiveDynamicSetExplorer:
 
         self._update_window_overlay()
         self._update_text_info()
-        self.fig.canvas.draw_idle()
+        self._capture_background(redraw_dynamic=True)
 
     def _redraw_setscape_pcolormesh(self):
         self.ax_scape.clear()
@@ -839,9 +976,9 @@ class InteractiveDynamicSetExplorer:
             shading='flat'
         )
 
-        self.ax_scape.set_ylabel("Window Size / Scale (Offset)", fontsize=7)
-        self.ax_scape.tick_params(axis="both", labelsize=5)
-        self.ax_scape.set_xlabel("Actual Offset Position (Quarter Notes)", fontsize=7)
+        self.ax_scape.set_ylabel("Window Size / Scale (Offset)", fontsize=10)
+        self.ax_scape.tick_params(axis="both", labelsize=8)
+        self.ax_scape.set_xlabel("Actual Offset Position (Quarter Notes)", fontsize=10)
         self.ax_scape.set_ylim(self.scales[0] - self.offset_step / 2, self.scales[-1] + self.offset_step / 2)
 
         if self.custom_2d_selection:
@@ -882,7 +1019,9 @@ class InteractiveDynamicSetExplorer:
                     self.rect_selector.set_active(False)
 
                 self._update_window_overlay()
-                self._update_text_info()
+                self._update_text_info(skip_voice_panel=True)
+                self._fast_refresh()
+                return
 
             elif self.active_tool in ['Zoom In (+)', 'Zoom Out (-)']:
                 zoom_factor = 0.6 if 'Zoom In' in self.active_tool else 1.6
@@ -929,11 +1068,14 @@ class InteractiveDynamicSetExplorer:
                 self.ax_scape.set_ylim(new_ymin, new_ymax)
                 self.ax_piano.set_xlim(new_xmin, new_xmax)
 
-                self.scrollbar.eventson = False
-                self.scrollbar.set_val((new_xmin + new_xmax) / 2)
-                self.scrollbar.eventson = True
+                # Move the scrollbar without triggering a redundant full-canvas
+                # redraw (Slider.set_val -> draw_idle).
+                self._set_scrollbar_no_draw((new_xmin + new_xmax) / 2)
 
-            self.fig.canvas.draw_idle()
+                # Viewport changed: repaint the two plot axes + dynamic layer.
+                # Viewport changed — full redraw required (blit background is stale).
+                self._capture_background(redraw_dynamic=True)
+                return
 
         # Focus tracking for Pan View keyboard stepping + handle turns red
         if event.inaxes == self.ax_scrollbar:
@@ -941,13 +1083,17 @@ class InteractiveDynamicSetExplorer:
                 self._pan_step_active = True
                 self.scrollbar._handle.set_markerfacecolor('#DD2222')
                 self.scrollbar._handle.set_markeredgecolor('#DD2222')
+                self._bg = None
                 self.fig.canvas.draw_idle()
+                return
         else:
             if self._pan_step_active:
                 self._pan_step_active = False
                 self.scrollbar._handle.set_markerfacecolor('white')
                 self.scrollbar._handle.set_markeredgecolor('.75')
+                self._bg = None
                 self.fig.canvas.draw_idle()
+                return
     def _reload_and_refresh(self, target_path, is_local=False):
         print(f"Loading target: {target_path} (is_local={is_local})")
         self._load_score_data(target_path, is_local=is_local)
@@ -992,7 +1138,7 @@ class InteractiveDynamicSetExplorer:
         self.textbox_corpus.set_val(corpus_display_text)
         self.textbox_corpus.eventson = True
 
-        self.fig.canvas.draw_idle()
+        self._capture_background(redraw_dynamic=True)
 
     def _on_corpus_submit(self, text):
         lines = [line.strip() for line in text.split('\n') if line.strip()]
@@ -1055,31 +1201,35 @@ class InteractiveDynamicSetExplorer:
 
         # 合并模式：所有声部直接画在同一 pitch 全高位置，重叠时靠半透明叠加混合
         # 每个声部固定 alpha=0.4，4个声部全叠时 ≈ 1 - (1-0.4)^4 = 0.87 不透明
+        # 性能：把几千个音符矩形合并成两个 PatchCollection 批量渲染，
+        # 避免逐个 add_patch 导致每次全图 redraw 都要重绘数千个独立 artist。
         OVERLAY_ALPHA = 0.40
+        fill_rects = []
+        edge_rects = []
         for start, dur, pitch, voice_id in notes_to_draw:
             face_color = _color(voice_id)
-            rect = patches.Rectangle(
+            fill_rects.append(patches.Rectangle(
                 (start, pitch - 0.5), dur, 1.0,
                 linewidth=0.0,
-                facecolor=face_color, alpha=OVERLAY_ALPHA, zorder=2
-            )
-            self.ax_piano.add_patch(rect)
-
-        # 给每个音符画一条细边线，便于辨认单个声部轮廓
-        for start, dur, pitch, voice_id in notes_to_draw:
-            face_color = _color(voice_id)
-            rect = patches.Rectangle(
+                facecolor=face_color, alpha=OVERLAY_ALPHA
+            ))
+            edge_rects.append(patches.Rectangle(
                 (start, pitch - 0.5), dur, 1.0,
                 linewidth=0.6, edgecolor=face_color, facecolor='none',
-                alpha=0.7, zorder=3
-            )
-            self.ax_piano.add_patch(rect)
+                alpha=0.7
+            ))
+        if fill_rects:
+            fill_col = PatchCollection(fill_rects, match_original=True, zorder=2)
+            self.ax_piano.add_collection(fill_col)
+        if edge_rects:
+            edge_col = PatchCollection(edge_rects, match_original=True, zorder=3)
+            self.ax_piano.add_collection(edge_col)
 
         self.ax_piano.set_xlim(0, self.total_length)
         self.ax_piano.set_ylim(self.min_midi - 1, self.max_midi + 1)
-        self.ax_piano.set_ylabel("MIDI Pitch", fontsize=7)
-        self.ax_piano.set_xlabel("Offset Position", fontsize=7)
-        self.ax_piano.tick_params(axis="both", labelsize=6)
+        self.ax_piano.set_ylabel("MIDI Pitch", fontsize=10)
+        self.ax_piano.set_xlabel("Offset Position", fontsize=10)
+        self.ax_piano.tick_params(axis="both", labelsize=8)
 
         # MIDI 刻度：每 5 半音标 "MIDI 音名"，不画更细的 minor tick
         from matplotlib.ticker import MultipleLocator, FixedLocator, FixedFormatter
@@ -1091,7 +1241,7 @@ class InteractiveDynamicSetExplorer:
         self.ax_piano.yaxis.set_major_locator(FixedLocator(all_midis))
         self.ax_piano.yaxis.set_major_formatter(FixedFormatter(all_labels))
         self.ax_piano.yaxis.set_minor_locator(MultipleLocator(1))
-        self.ax_piano.tick_params(axis='y', which='major', labelsize=5.5, length=4)
+        self.ax_piano.tick_params(axis='y', which='major', labelsize=7, length=4)
         # 不画 minor tick / 网格
         self.ax_piano.tick_params(axis='y', which='minor', length=0, color='none')
         self.ax_piano.grid(axis='y', which='major', linestyle=':', linewidth=0.4, color='#bbbbbb', alpha=0.7, zorder=0)
@@ -1100,31 +1250,34 @@ class InteractiveDynamicSetExplorer:
         self.window_patch = None
 
     def _update_window_overlay(self):
-        self._remove_window_overlay()
-
         if self.custom_2d_selection:
             start_o, end_o, ymin, ymax = self.custom_2d_selection
             width = end_o - start_o
             height = ymax - ymin
-
-            self.window_patch = patches.Rectangle(
-                (start_o, ymin), width, height,
-                linewidth=2.0, edgecolor='red', facecolor='none',
-                linestyle='--', zorder=4
-            )
             title_str = f"Piano Roll View | Active Window: {start_o:.2f} to {end_o:.2f} (MIDI: {ymin:.1f}-{ymax:.1f})"
         else:
             info = self.data_grid[(self.selected_scale_idx, self.selected_offset_idx)]
             start_o, end_o = info["start_offset"], info["end_offset"]
+            width = end_o - start_o
+            height = (self.max_midi - self.min_midi + 2)
+            ymin = self.min_midi - 1
+            title_str = f"Piano Roll View | Active Window: {start_o:.2f} to {end_o:.2f} (Full Pitch)"
 
-            self.window_patch = patches.Rectangle(
-                (start_o, self.min_midi - 1), end_o - start_o, (self.max_midi - self.min_midi + 2),
+        # Reuse one cached rectangle (dynamic blit layer) instead of rebuild
+        wp = getattr(self, 'window_patch', None)
+        if wp is None or wp not in self.ax_piano.patches:
+            wp = patches.Rectangle(
+                (start_o, ymin), width, height,
                 linewidth=2.0, edgecolor='red', facecolor='none',
                 linestyle='--', zorder=4
             )
-            title_str = f"Piano Roll View | Active Window: {start_o:.2f} to {end_o:.2f} (Full Pitch)"
-
-        self.ax_piano.add_patch(self.window_patch)
+            self.window_patch = self.ax_piano.add_patch(wp)
+            self.window_patch.set_animated(True)
+            self._add_blit_artist(self.window_patch)
+        else:
+            self.window_patch.set_xy((start_o, ymin))
+            self.window_patch.set_width(width)
+            self.window_patch.set_height(height)
         self.ax_piano.set_title(title_str, fontsize=8, loc='left')
 
     def _on_slider_release(self, val):
@@ -1144,7 +1297,7 @@ class InteractiveDynamicSetExplorer:
         self.selected_offset_idx = min(self.selected_offset_idx, self.num_points - 1)
         self.selected_scale_idx = min(self.selected_scale_idx, self.num_scales - 1)
 
-        self.fig.canvas.draw_idle()
+        self._capture_background(redraw_dynamic=True)
 
     def _on_reset_view(self, event):
         default_ymin = self.scales[0] - self.offset_step / 2
@@ -1164,7 +1317,7 @@ class InteractiveDynamicSetExplorer:
         if hasattr(self, 'rect_selector'):
             self.rect_selector.set_active(False)
 
-        self.fig.canvas.draw_idle()
+        self._capture_background(redraw_dynamic=True)
 
     def _on_scroll_pan(self, val):
         cur_xlim = self.ax_scape.get_xlim()
@@ -1184,7 +1337,8 @@ class InteractiveDynamicSetExplorer:
 
         self.ax_scape.set_xlim(new_xmin, new_xmax)
         self.ax_piano.set_xlim(new_xmin, new_xmax)
-        self.fig.canvas.draw_idle()
+        # Viewport changed — full redraw required (blit background is stale).
+        self._capture_background(redraw_dynamic=True)
 
     def _on_card_toggle(self, label):
         if label == "All":
@@ -1204,7 +1358,7 @@ class InteractiveDynamicSetExplorer:
 
         self._update_matrix()
         self.quad_mesh.set_array(self.matrix_display.ravel())
-        self.fig.canvas.draw_idle()
+        self._capture_background(redraw_dynamic=True)
 
     def _sync_master_card(self):
         """Set the master All checkbox active only if all 1-12 are active."""
@@ -1249,7 +1403,7 @@ class InteractiveDynamicSetExplorer:
             else:
                 self.active_voice_ids = set(all_ids)
             self._update_text_info()
-            self.fig.canvas.draw_idle()
+            self._capture_background(redraw_dynamic=True)
             return
 
         rects = getattr(self, '_voice_check_rects', {})
@@ -1261,7 +1415,7 @@ class InteractiveDynamicSetExplorer:
                     self.active_voice_ids.add(v_id)
                 # Visual-only toggle; click Refresh to recompute with new voice selection
                 self._update_text_info()
-                self.fig.canvas.draw_idle()
+                self._capture_background(redraw_dynamic=True)
                 return
 
     def _refresh_filtered_data(self):
@@ -1422,17 +1576,17 @@ class InteractiveDynamicSetExplorer:
                 lines.append("      " + " ".join(chunk))
         return lines
 
-    def _update_text_info(self):
-        """Update analysis text in ax_text (text-only). Voice checkboxes are drawn separately in ax_voices via _draw_voice_panel."""
-        self.ax_text.clear()
+    def _update_text_info(self, skip_voice_panel=False):
+        """Update analysis text in ax_text (text-only). Voice checkboxes are drawn separately in ax_voices via _draw_voice_panel.
 
-        self.ax_text.set_xticks([])
-        self.ax_text.set_yticks([])
-        self.ax_text.set_facecolor('#FFFDF5')
-        for spine in self.ax_text.spines.values():
-            spine.set_visible(True)
-            spine.set_color('#C0C0C0')
-            spine.set_linewidth(1.0)
+        Performance: the body text reuses one cached Text artist (set_text)
+        instead of clear()+rebuild, so a Browse click only re-renders a single
+        text object instead of recreating the whole text axes.
+        """
+        # 完全关闭 ax_text 的坐标轴显示（隐藏 spines + ticks + tick labels + axis labels）
+        # 不影响 transAxes 文本定位，set_xlim/set_ylim 也不再需要
+        self.ax_text.axis('off')
+        self.ax_text.set_facecolor('none')
 
         if self.custom_2d_selection:
             x1, x2, y1, y2 = self.custom_2d_selection
@@ -1440,9 +1594,10 @@ class InteractiveDynamicSetExplorer:
             window_sz = x2 - x1
             pitch_str = f"\nPitch: {y1:.1f}-{y2:.1f}"
             # 选中态下额外统计涉及声部（实时从分析结果读取）—— 完整显示，不截断
-            voices_in = info.get('voices', []) if info else []
+            voices_in = info.get('voices', [],) if info else []
             voice_pcs_detail = info.get('voice_pcs_detail', {}) if info else {}
             voice_block = self._format_voices_block(voices_in, voice_pcs_detail=voice_pcs_detail, voice_legend=self.voice_legend)
+            _gvd = voice_pcs_detail
         else:
             info = self.data_grid.get((self.selected_scale_idx, self.selected_offset_idx), None)
             window_sz = self.scales[self.selected_scale_idx] if info else 0.0
@@ -1471,16 +1626,16 @@ class InteractiveDynamicSetExplorer:
                     for vid in active_vids
                 ]
                 voice_block = self._format_voices_block(voices_in, voice_pcs_detail=grid_voice_pcs, voice_legend=self.voice_legend)
+                _gvd = grid_voice_pcs
             else:
                 voice_block = ""
+                _gvd = {}
 
         if info:
             if self.custom_2d_selection:
                 pcs_lines = self._annotated_pcs_line(info['pcs'], voice_pcs_detail)
             else:
-                # Browse/grid path — use grid_voice_pcs from the loop for annotations
-                gvd = {} if "grid_voice_pcs" not in dir() else grid_voice_pcs
-                pcs_lines = self._annotated_pcs_line(info['pcs'], gvd)
+                pcs_lines = self._annotated_pcs_line(info['pcs'], _gvd)
             pcs_annotated = "\n".join(pcs_lines)
             text_str = (
                 f"Mode: [{self.active_tool}]  Offset: {info['start_offset']:.1f}-{info['end_offset']:.1f}{pitch_str}\n"
@@ -1492,55 +1647,72 @@ class InteractiveDynamicSetExplorer:
             )
         else:
             text_str = "No Data Selected"
-        self.ax_text.text(
-            0.002, 0.97, text_str,
-            transform=self.ax_text.transAxes,
-            fontsize=7.5,
-            verticalalignment='top',
-            fontfamily='monospace',
-            wrap=True,
-            linespacing=1.10
-        )
-        self.ax_text.set_xlim(0, 1)
-        self.ax_text.set_ylim(0, 1)
+        if getattr(self, '_text_artist', None) is None:
+            self._text_artist = self.ax_text.text(
+                0.002, 0.97, text_str,
+                transform=self.ax_text.transAxes,
+                fontsize=7.5,
+                verticalalignment='top',
+                fontfamily='monospace',
+                # 文本本身已按行组织（含 \n），wrap=True 会在每次重绘时
+                # 对长文本重新布局（~45ms），关掉后仅 ~7ms，视觉一致。
+                wrap=False,
+                linespacing=1.10
+            )
+            self._text_artist.set_animated(True)
+            self._add_blit_artist(self._text_artist)
+        else:
+            self._text_artist.set_text(text_str)
+        # ax_text 已 axis('off')，无需再设置 xlim/ylim（保留会触发自动 tick 标签）
 
         # 声部勾选面板移到独立子图 ax_voices
-        self._draw_voice_panel()
+        if not skip_voice_panel:
+            self._draw_voice_panel()
 
     def _draw_voice_panel(self):
-        """Render the clickable Voices / Parts checkboxes inside ax_voices (transAxes coords 0-1)."""
+        """Render the clickable Voices / Parts checkboxes inside ax_voices
+        with a background card and border."""
         self.ax_voices.clear()
-        self.ax_voices.set_xticks([])
-        self.ax_voices.set_yticks([])
-        self.ax_voices.set_facecolor('#F7F4EC')
-        for spine in self.ax_voices.spines.values():
-            spine.set_visible(True)
-            spine.set_color('#C0C0C0')
-            spine.set_linewidth(1.0)
+        self.ax_voices.set_facecolor('none')
         self.ax_voices.set_xlim(0, 1)
         self.ax_voices.set_ylim(0, 1)
+        self.ax_voices.axis('off')
 
-        # 标题 — 用 set_title 渲染在 axes 外部，避免占用框内空间
+        artists = []
+
+        # Background card: rounded rectangle with subtle border
+        artists.append(patches.FancyBboxPatch(
+            (0.01, 0.01), 0.98, 0.98,
+            boxstyle="round,pad=0.015",
+            transform=self.ax_voices.transAxes,
+            facecolor='#FAFBFC', edgecolor='#B0B8C1',
+            linewidth=1.2, zorder=0, clip_on=False
+        ))
+
+        # 标题
         self.ax_voices.set_title(
             'Voices / Parts',
-            fontsize=6.0,
+            fontsize=6.5,
             fontweight='bold',
-            loc='left',
-            pad=2,
+            loc='center',
+            pad=4,
             color='#333333'
         )
+
+        # Shift all content to the right within the card
+        shift_x = 0.12  # rightward offset
 
         # "All Voices" master checkbox
         all_voice_on = (
             len(self.voice_legend) > 0
             and getattr(self, 'active_voice_ids', set()) == set(self.voice_legend.keys())
         )
-        y = 0.86
+        y = 0.83
         cb_w, cb_h = 0.05, 0.10
-        cb_x = 0.05
+        cb_x = 0.06 + shift_x
         self._voice_master_rect = (cb_x, y - cb_h / 2, cb_w, cb_h)
         mark = "✓" if all_voice_on else " "
-        self.ax_voices.text(
+        artists.append(self.ax_voices.text(
             cb_x + cb_w / 2, y,
             mark,
             transform=self.ax_voices.transAxes,
@@ -1551,56 +1723,58 @@ class InteractiveDynamicSetExplorer:
             horizontalalignment='center',
             fontfamily='DejaVu Sans',
             zorder=4
-        )
-        self.ax_voices.add_patch(
+        ))
+        artists.append(self.ax_voices.add_patch(
             patches.Rectangle(
                 (cb_x, y - cb_h / 2), cb_w, cb_h,
                 transform=self.ax_voices.transAxes,
-                facecolor='#DCF5E3' if all_voice_on else 'white',
-                edgecolor='#1E7E34' if all_voice_on else '#333333',
-                linewidth=1.2, zorder=3
+                facecolor='#FFFFFF',
+                edgecolor='#444444',
+                linewidth=1.5,
+                joinstyle='miter',
+                zorder=3
             )
-        )
-        self.ax_voices.text(
-            0.16, y, "All Voices",
+        ))
+        artists.append(self.ax_voices.text(
+            cb_x + cb_w + 0.10, y, "All Voices",
             transform=self.ax_voices.transAxes,
             fontsize=5.5,
             color='#333333',
             fontweight='bold',
             verticalalignment='center',
             fontfamily='monospace'
-        )
+        ))
 
         # individual voice checkboxes
         self._voice_check_rects = {}
         if not self.voice_legend:
-            self.ax_voices.text(
-                0.05, 0.40, "No Voice Info",
+            artists.append(self.ax_voices.text(
+                0.5, 0.45, "No Voice Info",
                 transform=self.ax_voices.transAxes,
                 fontsize=8,
                 verticalalignment='center',
+                horizontalalignment='center',
                 fontfamily='monospace',
                 color='#666666'
-            )
+            ))
+            self._replace_voice_artists(artists)
             return
 
-        # 自上而下排列：每个 item 占 ~14% 高度，起点 0.66
-        # 4 个声部时: 0.66 / 0.52 / 0.38 / 0.24，底部仍有 ~0.14 留白
-        y_start = 0.66
+        y_start = 0.60
         y_step = 0.14
         for idx, (v_id, v_info) in enumerate(self.voice_legend.items()):
             display_name = v_info['name']
-            if len(display_name) > 24:
-                display_name = display_name[:22] + ".."
+            if len(display_name) > 22:
+                display_name = display_name[:20] + ".."
 
             y_i = y_start - idx * y_step
-            cb_x_i = 0.05
+            cb_x_i = 0.06 + shift_x
             cb_y_i = y_i - cb_h / 2
             self._voice_check_rects[v_id] = (cb_x_i, cb_y_i, cb_w, cb_h)
 
             checked = v_id in getattr(self, 'active_voice_ids', set())
             mark = "✓" if checked else " "
-            self.ax_voices.text(
+            artists.append(self.ax_voices.text(
                 cb_x_i + cb_w / 2, y_i,
                 mark,
                 transform=self.ax_voices.transAxes,
@@ -1611,37 +1785,41 @@ class InteractiveDynamicSetExplorer:
                 horizontalalignment='center',
                 fontfamily='DejaVu Sans',
                 zorder=4
-            )
-            # 边框 + 填充
-            self.ax_voices.add_patch(
+            ))
+            artists.append(self.ax_voices.add_patch(
                 patches.Rectangle(
                     (cb_x_i, cb_y_i), cb_w, cb_h,
                     transform=self.ax_voices.transAxes,
-                    facecolor='#DCF5E3' if checked else 'white',
-                    edgecolor='#1E7E34' if checked else '#333333',
-                    linewidth=1.2, zorder=3
+                    facecolor='#FFFFFF',
+                    edgecolor='#444444',
+                    linewidth=1.5,
+                    joinstyle='miter',
+                    zorder=3
                 )
-            )
-            # 颜色色块（紧邻 checkbox 右侧）
-            self.ax_voices.add_patch(
+            ))
+            # 颜色色块
+            artists.append(self.ax_voices.add_patch(
                 patches.Rectangle(
                     (cb_x_i + cb_w + 0.02, y_i - cb_h / 2 + 0.01),
-                    0.045, cb_h - 0.02,
+                    0.05, cb_h - 0.02,
                     transform=self.ax_voices.transAxes,
                     facecolor=v_info['color'], edgecolor=v_info['color'],
                     linewidth=0.8, zorder=2
                 )
-            )
+            ))
             # 声部名称
-            self.ax_voices.text(
-                0.27, y_i, display_name,
+            artists.append(self.ax_voices.text(
+                cb_x_i + cb_w + 0.10, y_i, display_name,
                 transform=self.ax_voices.transAxes,
                 fontsize=6,
                 color=v_info['color'],
                 fontweight='bold',
                 verticalalignment='center',
                 fontfamily='monospace'
-            )
+            ))
+
+        self._replace_voice_artists(artists)
+
 
 
 def launch(score_path=None, score=None):
